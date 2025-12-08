@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static',filename='styles.css') }}">
+
+</head>
+<body>
+    <main>
+        <form method="post" action="/login_validation">
+            <input type="email" name="email" placeholder="Enter email"><br>
+            <input type="password" name="password" placeholder="Enter password"><br>
+            <button type="submit" value="Login">Login</button>
+            <button type="submit" value="admin_Login">Admin Login</button>
+        </form>
+        <p>Don't have an account? <br><a href="/signUp">create account</a></p>
+        <p><a href="/forgot_page">Forgot password?</a></p>
+        <img>
+    </main>
+</body>
+</html>
