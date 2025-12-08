@@ -8,10 +8,12 @@ from email.mime.text import MIMEText
 import random
 from flask_cors import CORS
 from password_Manager import password_Manager
+from AI import QuizAI
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 CORS(app) 
+quiz_ai = QuizAI()
 
 #---------- Routes -----------#
 
@@ -175,6 +177,30 @@ def check_otp():
         else:
             connection.close()
             return render_template('forgot-password.html', msg="Invalid OTP!")
+        
+@app.route('/quiz', methods=['GET', 'POST'])
+def quiz():
+    if request.method == 'POST':
+        subject = request.form.get('subject', 'General Knowledge')
+        questions = quiz_ai.generate_questions(subject=subject, difficulty="advanced", num_questions=3)
+
+        # Store questions in session so we can grade later
+        session['questions'] = questions
+        session['subject'] = subject
+        return render_template('quiz.html', subject=subject, questions=questions)
+
+    return render_template('quiz_select.html')  # page with subject input form
+
+@app.route('/submit_quiz', methods=['POST'])
+def submit_quiz():
+    questions = session.get('questions', [])
+    subject = session.get('subject', 'General Knowledge')
+    user_answers = []
+
+    for i in range(len(questions)):
+        user_answers.append(request.form.get(f"q{i+1}", ""))
+
+    score, total = quiz_ai.grade(questions, user_answers)
 
 
 #--------- Utility ---------#
