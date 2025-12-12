@@ -9,6 +9,8 @@ import random
 from flask_cors import CORS
 from password_Manager import password_Manager
 from AI import QuizAI
+import functools
+import json
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -16,6 +18,91 @@ CORS(app)
 quiz_ai = QuizAI()
 
 #---------- Routes -----------#
+
+def admin_required(view_func):
+    @functools.wraps(view_func)
+    def wrapper(*args, **kwargs):
+        if not session.get('is_admin'):
+            flash("Admin access required")
+            return redirect('/')  # or redirect('/login') depending on your flow
+        return view_func(*args, **kwargs)
+    return wrapper
+
+@app.route('/admin/quiz_setup', methods=['GET'])
+@admin_required
+def admin_quiz_setup():
+    # render form, loading last saved config if present
+    schedules = []
+    try:
+        if os.path.exists('quiz_schedules.json'):
+            with open('quiz_schedules.json', 'r', encoding='utf-8') as f:
+                schedules = json.load(f)
+    except Exception:
+        schedules = []
+    return render_template('admin_quiz_setup.html', schedules=schedules)
+
+
+@app.route('/admin/quiz_setup', methods=['POST'])
+@admin_required
+def admin_quiz_setup_post():
+    # Read form fields
+    date_str = request.form.get('date')  # expected YYYY-MM-DD
+    genres = request.form.getlist('genres')  # array of selected genres
+    num_questions = request.form.get('num_questions', '').strip()
+
+    # Basic validation
+    errors = []
+    if not date_str:
+        errors.append("Date is required.")
+    try:
+        num_q = int(num_questions)
+        if num_q <= 0:
+            errors.append("Number of questions must be positive.")
+    except Exception:
+        errors.append("Number of questions must be an integer.")
+
+    allowed_genres = {'sports', 'general', 'geography', 'history'}
+    normalized_genres = []
+    for g in genres:
+        key = g.strip().lower()
+        if key in allowed_genres:
+            normalized_genres.append(key)
+
+    if not normalized_genres:
+        errors.append("Select at least one genre.")
+
+    if errors:
+        for e in errors:
+            flash(e)
+        return redirect('/admin/quiz_setup')
+
+    # Persist schedule to JSON file
+    entry = {
+        'date': date_str,
+        'genres': normalized_genres,
+        'num_questions': num_q,
+        'created_by': session.get('user_email')
+    }
+
+    schedules = []
+    try:
+        if os.path.exists('quiz_schedules.json'):
+            with open('quiz_schedules.json', 'r', encoding='utf-8') as f:
+                schedules = json.load(f)
+    except Exception:
+        schedules = []
+
+    schedules.append(entry)
+
+    try:
+        with open('quiz_schedules.json', 'w', encoding='utf-8') as f:
+            json.dump(schedules, f, indent=2)
+    except Exception as e:
+        flash("Failed to save schedule: " + str(e))
+        return redirect('/admin/quiz_setup')
+
+    flash("Quiz schedule saved.")
+    return redirect('/admin/quiz_setup')
 
 @app.route('/')
 def login():
@@ -44,13 +131,18 @@ def login_validation():
     user = cursor.execute("SELECT * FROM USERS WHERE email=? and password=?",(email,hashed_pw)).fetchall()
     connection.close()
 
-    if(len(user)>0):
+    if len(user) > 0:
         password_Manager.log_event(f"{email} logged in successfully")
+        # set session user info
+        session['user_email'] = email
+        # admin check via environment variable
+        admin_email = os.environ.get('ADMIN_EMAIL', 'admin@example.com')
+        session['is_admin'] = (email == admin_email)
         return redirect(f'/home?fname={user[0][0]}&lname={user[0][1]}&email={user[0][2]}')
     else:
         password_Manager.log_event(f"Failed login attempt for {email}")
         flash("Invalid credentials")
-        return redirect('/home')
+        return redirect('/login')
     
 @app.route('/add_user', methods=['POST'])
 def add_user():
