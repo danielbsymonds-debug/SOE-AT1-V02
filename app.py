@@ -11,6 +11,15 @@ from password_Manager import password_Manager
 from AI import QuizAI
 import functools
 import json
+from datetime import datetime
+# initialize DBs/tables at startup
+import database  # adjust import if you placed database.py elsewhere
+
+# ensure DBs/tables exist
+database.init_login_db()
+database.init_quiz_db()
+database.init_admin_table()
+database.init_daily_scores()
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -27,6 +36,13 @@ def admin_required(view_func):
             return redirect('/')  # or redirect('/login') depending on your flow
         return view_func(*args, **kwargs)
     return wrapper
+
+@app.route('/admin/daily_scores', methods=['GET'])
+@admin_required
+def admin_daily_scores():
+    rows = database.get_all_daily_scores()
+    # rows are tuples (id, fname, lname, email, score, date)
+    return render_template('admin_daily_scores.html', rows=rows)
 
 @app.route('/admin/quiz_setup', methods=['GET'])
 @admin_required
@@ -123,26 +139,58 @@ def home():
 def login_validation():
     email = request.form.get('email')
     password = request.form.get('password')
+    if email is None or password is None:
+        flash("Email and password are required")
+        return redirect('/')
+
     hashed_pw = password_Manager.hash_password(password)
 
     connection = sqlite3.connect('LoginData.db')
     cursor = connection.cursor()
 
-    user = cursor.execute("SELECT * FROM USERS WHERE email=? and password=?",(email,hashed_pw)).fetchall()
+    # Fetch user by email only
+    user_row = cursor.execute("SELECT * FROM USERS WHERE email=?", (email,)).fetchone()
+
+    if user_row is None:
+        connection.close()
+        password_Manager.log_event(f"Failed login attempt for {email} (no such user)")
+        flash("Invalid credentials")
+        return redirect('/')
+
+    # Assume schema: (first_name, last_name, email, password, ...)
+    stored_password = user_row[3] if len(user_row) > 3 else None
+
+    # Check hashed match OR plain-text match (to support older records)
+    if stored_password == hashed_pw:
+        # good: stored password is hashed and matches
+        authenticated = True
+    elif stored_password == password:
+        # stored password was plaintext; migrate it to hashed
+        try:
+            cursor.execute("UPDATE USERS SET password = ? WHERE email = ?", (hashed_pw, email))
+            connection.commit()
+            authenticated = True
+            password_Manager.log_event(f"Migrated password to hashed for {email}")
+        except Exception as e:
+            authenticated = False
+            password_Manager.log_event(f"Failed to migrate password for {email}: {e}")
+    else:
+        authenticated = False
+
     connection.close()
 
-    if len(user) > 0:
+    if authenticated:
         password_Manager.log_event(f"{email} logged in successfully")
         # set session user info
         session['user_email'] = email
         # admin check via environment variable
         admin_email = os.environ.get('ADMIN_EMAIL', 'admin@example.com')
         session['is_admin'] = (email == admin_email)
-        return redirect(f'/home?fname={user[0][0]}&lname={user[0][1]}&email={user[0][2]}')
+        return redirect(f'/home?fname={user_row[0]}&lname={user_row[1]}&email={user_row[2]}')
     else:
-        password_Manager.log_event(f"Failed login attempt for {email}")
+        password_Manager.log_event(f"Failed login attempt for {email} (bad password)")
         flash("Invalid credentials")
-        return redirect('/login')
+        return redirect('/')
     
 @app.route('/add_user', methods=['POST'])
 def add_user():
@@ -161,12 +209,17 @@ def add_user():
     connection = sqlite3.connect('LoginData.db')
     cursor = connection.cursor()
 
-    ans = cursor.execute("SELECT * from USERS where email=? AND password=?",(email,hashed_pw)).fetchall()
-    if(len(ans)>0):
+    # Check by email only
+    existing = cursor.execute("SELECT * from USERS where email=?",(email,)).fetchall()
+    if len(existing) > 0:
         connection.close()
-        return render_template('signUp.html',msg="user already exists")
+        return render_template('signUp.html', msg="User already exists")
     else:
-        cursor.execute("INSERT INTO USERS(first_name,last_name,email,password)values(?,?,?,?)",(fname,lname,email,password, hashed_pw))
+        # Insert hashed password only
+        cursor.execute(
+            "INSERT INTO USERS(first_name,last_name,email,password) VALUES (?,?,?,?)",
+            (fname, lname, email, hashed_pw)
+        )
         connection.commit()
         connection.close()
         password_Manager.log_event(f"New user registered: {email}")
@@ -293,6 +346,32 @@ def submit_quiz():
         user_answers.append(request.form.get(f"q{i+1}", ""))
 
     score, total = quiz_ai.grade(questions, user_answers)
+
+    # Save to QUIZ_RESULTS (existing helper)
+    user_email = session.get('user_email', 'anonymous')
+    try:
+        database.save_quiz_result(user_email, subject, score, total)
+    except Exception as e:
+        # non-fatal: log or flash
+        flash(f"Failed to save quiz result to DB: {e}")
+
+    # Save a DAILY_SCORES entry (include fname/lname if available)
+    user = database.get_user_by_email(user_email)
+    if user:
+        fname, lname, email = user[0], user[1], user[2]
+    else:
+        # fallback: try to get from session or mark anonymous
+        fname = session.get('fname', '')
+        lname = session.get('lname', '')
+        email = user_email
+
+    try:
+        database.save_daily_score(fname, lname, email, score)
+    except Exception as e:
+        flash(f"Failed to save daily score: {e}")
+
+    flash(f'Quiz submitted — Score: {score}/{total}')
+    return redirect('/home')
 
 
 #--------- Utility ---------#

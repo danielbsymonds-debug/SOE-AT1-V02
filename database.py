@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import datetime
 
 LOGIN_DB = "LoginData.db"
 QUIZ_DB = "QuizData.db"
@@ -114,3 +115,87 @@ def get_all_results():
     rows = cursor.execute("SELECT * FROM QUIZ_RESULTS").fetchall()
     connection.close()
     return rows
+
+# --- Admin table and daily scores helpers ---
+
+def init_admin_table():
+    """Create ADMIN table to store admin account(s)."""
+    connection = sqlite3.connect(LOGIN_DB)
+    cursor = connection.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ADMIN (
+        email VARCHAR(50) PRIMARY KEY,
+        password VARCHAR(255) NOT NULL,
+        first_name VARCHAR(50),
+        last_name VARCHAR(50)
+    )
+    """)
+    connection.commit()
+    connection.close()
+
+
+def add_admin(email, password, first_name=None, last_name=None):
+    """Insert a new admin (use hashed password)."""
+    connection = sqlite3.connect(LOGIN_DB)
+    cursor = connection.cursor()
+    cursor.execute("INSERT OR REPLACE INTO ADMIN(email, password, first_name, last_name) VALUES (?, ?, ?, ?)",
+                   (email, password, first_name, last_name))
+    connection.commit()
+    connection.close()
+
+
+def get_admins():
+    """Return all admins."""
+    connection = sqlite3.connect(LOGIN_DB)
+    cursor = connection.cursor()
+    rows = cursor.execute("SELECT email, first_name, last_name FROM ADMIN").fetchall()
+    connection.close()
+    return rows
+
+
+def init_daily_scores():
+    """Create DAILY_SCORES table to store daily quiz scores (per user)."""
+    connection = sqlite3.connect(QUIZ_DB)
+    cursor = connection.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS DAILY_SCORES (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fname TEXT,
+        lname TEXT,
+        email TEXT,
+        score INTEGER,
+        date TEXT
+    )
+    """)
+    connection.commit()
+    connection.close()
+
+
+def save_daily_score(fname, lname, email, score, date=None):
+    """Save a daily quiz score entry."""
+    if date is None:
+        date = datetime.utcnow().isoformat()
+    connection = sqlite3.connect(QUIZ_DB)
+    cursor = connection.cursor()
+    cursor.execute("INSERT INTO DAILY_SCORES(fname, lname, email, score, date) VALUES (?, ?, ?, ?, ?)",
+                   (fname, lname, email, score, date))
+    connection.commit()
+    connection.close()
+
+
+def get_all_daily_scores():
+    """Return all daily scores, ordered newest first."""
+    connection = sqlite3.connect(QUIZ_DB)
+    cursor = connection.cursor()
+    rows = cursor.execute("SELECT id, fname, lname, email, score, date FROM DAILY_SCORES ORDER BY date DESC").fetchall()
+    connection.close()
+    return rows
+
+
+def get_user_by_email(email):
+    """Return user (first_name, last_name, email) from USERS table (or None)."""
+    connection = sqlite3.connect(LOGIN_DB)
+    cursor = connection.cursor()
+    row = cursor.execute("SELECT first_name, last_name, email FROM USERS WHERE email=?", (email,)).fetchone()
+    connection.close()
+    return row

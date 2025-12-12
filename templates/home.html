@@ -8,10 +8,12 @@
 </head>
 <body>
     <main>
-        <form>
-         <h1>Welcome to Quizzes by AI</h1>
-            <img class="showUser">
-            <button type="submit" value="Quizzes">AI Quizzes</button>
+        <h1>Welcome!</h1>
+        <img class="showUser" alt="User avatar or placeholder">
+
+        <!-- Button that navigates to the quiz selection page -->
+        <form action="{{ url_for('quiz') }}" method="get" style="margin-top:16px;">
+            <button type="submit">Go to Quizzes</button>
         </form>
     </main>
 </body>
