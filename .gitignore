@@ -1,4 +1,6 @@
 .env
 .venv
 __pycache__
-audit_log.txt  
+audit_log.txt 
+LoginData.db
+QuizData.db 

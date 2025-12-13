@@ -262,13 +262,13 @@ def init_quizzes_table():
     connection = sqlite3.connect(QUIZ_DB)
     cursor = connection.cursor()
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS QUIZZES (
+    CREATE TABLE IF NOT EXISTS QUIZ_HEADER (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         date TEXT,
         genres TEXT,
         num_questions INTEGER,
         created_by TEXT,
-        questions TEXT
+        is_active BOOLEAN
     )
     """)
     connection.commit()
@@ -279,7 +279,7 @@ def save_quiz(date, genres, num_questions, created_by, questions):
     connection = sqlite3.connect(QUIZ_DB)
     cursor = connection.cursor()
     cursor.execute(
-        "INSERT INTO QUIZZES(date, genres, num_questions, created_by, questions) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO QUIZZES(date, genres, num_questions, created_by, is_active) VALUES (?, ?, ?, ?, ?)",
         (date, json.dumps(genres), num_questions, created_by, json.dumps(questions))
     )
     connection.commit()
@@ -290,7 +290,7 @@ def get_quiz_by_date(date):
     connection = sqlite3.connect(QUIZ_DB)
     cursor = connection.cursor()
     row = cursor.execute(
-        "SELECT id, date, genres, num_questions, created_by, questions FROM QUIZZES WHERE date=? ORDER BY id DESC LIMIT 1",
+        "SELECT id, date, genres, num_questions, created_by, is_active FROM QUIZZES WHERE date=? ORDER BY id DESC LIMIT 1",
         (date,)
     ).fetchone()
     connection.close()
@@ -301,7 +301,128 @@ def get_latest_quiz():
     connection = sqlite3.connect(QUIZ_DB)
     cursor = connection.cursor()
     row = cursor.execute(
-        "SELECT id, date, genres, num_questions, created_by, questions FROM QUIZZES ORDER BY id DESC LIMIT 1"
+        "SELECT id, date, genres, num_questions, created_by, is_active FROM QUIZZES ORDER BY id DESC LIMIT 1"
     ).fetchone()
     connection.close()
     return row
+
+# -----------------------------
+# QuizQuestions and User_Result tables
+# -----------------------------
+def init_quiz_questions_table():
+    """
+    Create QuizQuestions table to store individual question rows for quizzes.
+    Columns:
+      Qid   INTEGER PRIMARY KEY AUTOINCREMENT
+      Qno   INTEGER           -- question number in that quiz (1-based)
+      Qstr  TEXT              -- question text
+      A     TEXT              -- option A text (include 'A)' prefix if desired)
+      B     TEXT
+      C     TEXT
+      D     TEXT
+      CAns  TEXT              -- correct answer letter ('A'..'D') or the correct option text
+    """
+    connection = sqlite3.connect(QUIZ_DB)
+    cursor = connection.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS QuizQuestions (
+        Qid INTEGER PRIMARY KEY AUTOINCREMENT,
+        Qno INTEGER,
+        Qstr TEXT,
+        A TEXT,
+        B TEXT,
+        C TEXT,
+        D TEXT,
+        CAns TEXT
+    )
+    """)
+    connection.commit()
+    connection.close()
+
+def save_quiz_question(qno, qstr, a, b, c, d, cans):
+    """
+    Insert a question row into QuizQuestions.
+    Returns the inserted Qid.
+    """
+    connection = sqlite3.connect(QUIZ_DB)
+    cursor = connection.cursor()
+    cursor.execute(
+        "INSERT INTO QuizQuestions (Qno, Qstr, A, B, C, D, CAns) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (qno, qstr, a, b, c, d, cans)
+    )
+    qid = cursor.lastrowid
+    connection.commit()
+    connection.close()
+    return qid
+
+def get_quiz_questions():
+    """Return all QuizQuestions rows (list of tuples)."""
+    connection = sqlite3.connect(QUIZ_DB)
+    cursor = connection.cursor()
+    rows = cursor.execute("SELECT Qid, Qno, Qstr, A, B, C, D, CAns FROM QuizQuestions ORDER BY Qno ASC").fetchall()
+    connection.close()
+    return rows
+
+def get_question_by_qid(qid):
+    connection = sqlite3.connect(QUIZ_DB)
+    cursor = connection.cursor()
+    row = cursor.execute("SELECT Qid, Qno, Qstr, A, B, C, D, CAns FROM QuizQuestions WHERE Qid=?", (qid,)).fetchone()
+    connection.close()
+    return row
+
+
+def init_user_result_table():
+    """
+    Create User_Result table to record individual user answers.
+    Columns:
+      id              INTEGER PRIMARY KEY AUTOINCREMENT
+      user            TEXT   -- user identifier (email or username)
+      Qid             INTEGER -- foreign key into QuizQuestions.Qid (optional)
+      Qno             INTEGER -- question number (copied for convenience)
+      Ans             TEXT   -- the answer the user submitted (letter or text)
+      correct_answer  INTEGER -- 0 or 1 for False/True
+    """
+    connection = sqlite3.connect(QUIZ_DB)
+    cursor = connection.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS User_Result (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user TEXT,
+        Qid INTEGER,
+        Qno INTEGER,
+        Ans TEXT,
+        correct_answer INTEGER
+    )
+    """)
+    connection.commit()
+    connection.close()
+
+def save_user_result(user, qid, qno, ans, correct):
+    """
+    Save a user's answer.
+    `correct` should be truthy/falsey (True -> 1, False -> 0)
+    """
+    connection = sqlite3.connect(QUIZ_DB)
+    cursor = connection.cursor()
+    cursor.execute(
+        "INSERT INTO User_Result (user, Qid, Qno, Ans, correct_answer) VALUES (?, ?, ?, ?, ?)",
+        (user, qid, qno, ans, 1 if correct else 0)
+    )
+    connection.commit()
+    connection.close()
+
+def get_user_results(user):
+    """Return all User_Result rows for a given user (list of tuples)."""
+    connection = sqlite3.connect(QUIZ_DB)
+    cursor = connection.cursor()
+    rows = cursor.execute("SELECT id, user, Qid, Qno, Ans, correct_answer FROM User_Result WHERE user=? ORDER BY id DESC", (user,)).fetchall()
+    connection.close()
+    return rows
+
+def get_results_for_question(qid):
+    """Return all User_Result rows for a particular question id."""
+    connection = sqlite3.connect(QUIZ_DB)
+    cursor = connection.cursor()
+    rows = cursor.execute("SELECT id, user, Qid, Qno, Ans, correct_answer FROM User_Result WHERE Qid=?", (qid,)).fetchall()
+    connection.close()
+    return rows

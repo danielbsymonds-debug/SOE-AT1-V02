@@ -20,6 +20,8 @@ database.init_quiz_db()
 database.init_admin_table()
 database.init_daily_scores()
 database.init_quizzes_table() 
+database.init_quiz_questions_table()
+database.init_user_result_table()
 
 app = Flask(__name__)
 app.jinja_env.globals.update(enumerate=enumerate)
@@ -64,10 +66,9 @@ def admin_quiz_setup():
         schedules = []
     return render_template('admin_Quiz_Setup.html', schedules=schedules)
 
-
 @app.route('/admin/quiz_setup', methods=['POST'])
 @admin_required
-def    admin_quiz_setup_post():
+def admin_quiz_setup_post():
     # Read form fields
     date_str = request.form.get('date')  # expected YYYY-MM-DD
     genres = request.form.getlist('genres')  # array of selected genres
@@ -99,29 +100,68 @@ def    admin_quiz_setup_post():
             flash(e)
         return redirect('/admin/quiz_setup')
 
-      # Build a subject/prompt for the AI from the chosen genres
+    # Build a subject/prompt for the AI from the chosen genres
     subject_prompt = ", ".join(normalized_genres).title()
 
-    # Ask the AI to generate the questions: temporarily set the QuizAI instance fields
+    # Ask the AI to generate the questions. Retry a couple times if parsing fails.
     old_subject = getattr(quiz_ai, 'subject', None)
     old_difficulty = getattr(quiz_ai, 'difficulty', None)
     quiz_ai.subject = subject_prompt
     quiz_ai.difficulty = "advanced"
 
-    try:
-        questions = quiz_ai.generate_questions(num_questions=num_q)
-    except Exception as e:
-        # restore before exiting
-        quiz_ai.subject = old_subject
-        quiz_ai.difficulty = old_difficulty
-        flash(f"Failed to generate questions from AI: {e}")
-        return redirect('/admin/quiz_setup')
+    questions = None
+    max_attempts = 3
+    attempt = 0
+    last_exception = None
+
+    while attempt < max_attempts:
+        attempt += 1
+        try:
+            questions = quiz_ai.generate_questions(num_questions=num_q, subject=subject_prompt, difficulty="advanced")
+        except Exception as e:
+            last_exception = e
+            questions = None
+
+        # Basic validation: questions should be a list of dicts with a non-empty parsed question
+        valid = True
+        if not isinstance(questions, list) or len(questions) < 1:
+            valid = False
+        else:
+            for q in questions:
+                q_text = (q.get('question') or "").strip() if isinstance(q, dict) else ""
+                raw = (q.get('raw') or "") if isinstance(q, dict) else ""
+                # If parsed question is empty or equals (or contains) the prompt, consider it invalid
+                if not q_text:
+                    valid = False
+                    break
+                low_q = q_text.lower()
+                if subject_prompt.lower() in low_q or low_q.startswith("create ") or "multiple-choice" in low_q:
+                    valid = False
+                    break
+                # Also check if raw output is obviously just the prompt
+                if raw and (subject_prompt.lower() in raw.lower() or raw.strip().lower().startswith("create ")):
+                    # but only treat as invalid if parsed q_text still suspicious
+                    # do nothing extra here (already checked q_text)
+                    pass
+
+        if valid:
+            break  # good to go
+        else:
+            # try again: small random tweak could help (but here we just retry)
+            questions = None
 
     # restore original ai settings
     quiz_ai.subject = old_subject
     quiz_ai.difficulty = old_difficulty
 
-    # Persist generated quiz to DB
+    if not questions:
+        msg = f"Failed to generate valid questions from AI."
+        if last_exception:
+            msg += f" Error: {last_exception}"
+        flash(msg)
+        return redirect('/admin/quiz_setup')
+
+    # Persist generated quiz to DB (questions contain 'raw' now)
     try:
         database.save_quiz(date_str, normalized_genres, num_q, session.get('user_email'), questions)
     except Exception as e:
@@ -442,7 +482,7 @@ def quiz():
         quiz_ai.difficulty = "advanced"
 
         try:
-            questions = quiz_ai.generate_questions(num_questions=3)
+            questions = quiz_ai.generate_questions(num_questions=3, subject=subject, difficulty="advanced")
         finally:
             # restore original settings
             quiz_ai.subject = old_subject
