@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Admin Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <style>
+    main { max-width:700px; margin:32px auto; padding:16px; text-align:center; }
+    .cards { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:18px; }
+    .card { padding:18px; border-radius:8px; border:1px solid #ddd; width:220px; background:#fff; box-shadow:0 2px 4px rgba(0,0,0,0.04); }
+    .card h3 { margin:0 0 8px 0; font-size:1.05rem; }
+    .card p { margin:0 0 12px 0; color:#555; font-size:0.95rem; }
+    .card form { margin-top:auto; }
+    button { padding:8px 12px; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Admin Dashboard</h1>
+    <p>Use the controls below to manage quizzes and view results.</p>
+
+    <div class="cards">
+      <div class="card">
+        <h3>Quiz Setup</h3>
+        <p>Schedule or update today's quiz and select genres.</p>
+        <form action="{{ url_for('admin_quiz_setup') }}" method="get">
+          <button type="submit">Open Quiz Setup</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h3>Daily Scores</h3>
+        <p>View the daily quiz scores table for all users.</p>
+        <form action="{{ url_for('admin_daily_scores') }}" method="get">
+          <button type="submit">View Daily Scores</button>
+        </form>
+      </div>
+    </div>
+
+      <div class="card">
+        <h3>All Quiz Results</h3>
+        <p>See every user's quiz attempts and scores.</p>
+        <form action="{{ url_for('admin_results') }}" method="get">
+          <button type="submit">View All Results</button>
+        </form>
+      </div>
+
+    <div style="margin-top:20px;">
+      <a href="{{ url_for('home') }}"><button type="button">Return Home</button></a>
+    </div>
+  </main>
+</body>
+</html>

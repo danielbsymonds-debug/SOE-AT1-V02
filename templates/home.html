@@ -9,12 +9,19 @@
 <body>
     <main>
         <h1>Welcome!</h1>
-        <img class="showUser" alt="User avatar or placeholder">
+        <img class="showUser">
 
         <!-- Button that navigates to the quiz selection page -->
         <form action="{{ url_for('quiz') }}" method="get" style="margin-top:16px;">
-            <button type="submit">Go to Quizzes</button>
+            <button type="submit">Daily Quiz</button>
         </form>
+
+        <!-- Admin-only link to Admin Dashboard -->
+        {% if session.get('is_admin') %}
+          <form action="{{ url_for('admin_Dashboard') }}" method="get" style="margin-top:12px;">
+            <button type="submit">Admin Dashboard</button>
+          </form>
+        {% endif %}
     </main>
 </body>
 </html>

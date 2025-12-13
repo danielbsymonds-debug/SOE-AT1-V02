@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Quiz - {{ subject or "Quiz" }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <style>
+    main { max-width:800px; margin:24px auto; padding:16px; }
+    .question { margin-bottom:18px; padding:8px; border-radius:6px; border:1px solid #eee; background:#fafafa; }
+    .question p { margin:0 0 8px 0; font-weight:600; }
+    .choices { display:flex; flex-direction:column; gap:6px; margin-top:6px; }
+    input[type="text"], textarea { width:100%; padding:8px; font-size:1rem; }
+    .actions { margin-top:18px; display:flex; gap:8px; }
+    button { padding:8px 12px; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>{{ subject or "Quiz" }}</h1>
+    <p>Answer the questions below and submit when finished.</p>
+
+    <form method="post" action="{{ url_for('submit_quiz') }}">
+      {% if not questions %}
+        <p>No questions available.</p>
+      {% else %}
+        {% for q in questions %}
+          {% set qnum = loop.index %}
+          <div class="question" id="q{{ qnum }}">
+            <p>Q{{ qnum }}.
+              {% if q.question is defined %}
+                {{ q.question }}
+              {% elif q.prompt is defined %}
+                {{ q.prompt }}
+              {% else %}
+                {{ q }}
+              {% endif %}
+            </p>
+
+            {# Determine choices list if present #}
+            {% set opts = None %}
+            {% if q.options is defined %}
+              {% set opts = q.options %}
+            {% elif q.choices is defined %}
+              {% set opts = q.choices %}
+            {% endif %}
+
+            {% if opts %}
+              <div class="choices" role="list">
+                {% for opt in opts %}
+                  {% if opt is mapping %}
+                    {% set opt_label = opt.get('text') or opt.get('label') or opt %}
+                  {% else %}
+                    {% set opt_label = opt %}
+                  {% endif %}
+                  <label>
+                    <input type="radio" name="q{{ qnum }}" value="{{ opt_label }}" required>
+                    {{ opt_label }}
+                  </label>
+                {% endfor %}
+              </div>
+            {% else %}
+              {# free-text answer #}
+              <div>
+                <input type="text" name="q{{ qnum }}" placeholder="Your answer" autocomplete="off" required>
+              </div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      {% endif %}
+
+      <div class="actions">
+        <button type="submit">Submit Quiz</button>
+        <a href="{{ url_for('home') }}"><button type="button">Back Home</button></a>
+      </div>
+    </form>
+  </main>
+</body>
+</html>

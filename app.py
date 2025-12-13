@@ -37,6 +37,12 @@ def admin_required(view_func):
         return view_func(*args, **kwargs)
     return wrapper
 
+@app.route('/admin', methods=['GET'])
+@admin_required
+def admin_dashboard():
+    """Simple admin dashboard linking to admin pages."""
+    return render_template('/admin_Dashboard')
+
 @app.route('/admin/daily_scores', methods=['GET'])
 @admin_required
 def admin_daily_scores():
@@ -55,7 +61,7 @@ def admin_quiz_setup():
                 schedules = json.load(f)
     except Exception:
         schedules = []
-    return render_template('admin_quiz_setup.html', schedules=schedules)
+    return render_template('admin_Quiz_Setup.html', schedules=schedules)
 
 
 @app.route('/admin/quiz_setup', methods=['POST'])
@@ -135,10 +141,12 @@ def home():
     email = request.args.get('email')
     return render_template('home.html', fname=fname, lname=lname, email=email)
 
-@app.route('/login_validation' ,methods=['POST'])
+@app.route('/login_validation', methods=['POST'])
 def login_validation():
     email = request.form.get('email')
     password = request.form.get('password')
+    action = request.form.get('action', 'login')  # 'login' or 'admin_login'
+
     if email is None or password is None:
         flash("Email and password are required")
         return redirect('/')
@@ -162,10 +170,9 @@ def login_validation():
 
     # Check hashed match OR plain-text match (to support older records)
     if stored_password == hashed_pw:
-        # good: stored password is hashed and matches
         authenticated = True
     elif stored_password == password:
-        # stored password was plaintext; migrate it to hashed
+        # migrate plaintext to hashed
         try:
             cursor.execute("UPDATE USERS SET password = ? WHERE email = ?", (hashed_pw, email))
             connection.commit()
@@ -183,15 +190,85 @@ def login_validation():
         password_Manager.log_event(f"{email} logged in successfully")
         # set session user info
         session['user_email'] = email
-        # admin check via environment variable
-        admin_email = os.environ.get('ADMIN_EMAIL', 'admin@example.com')
-        session['is_admin'] = (email == admin_email)
+
+        # Determine admin status:
+        # 1) env var match
+        admin_email = os.environ.get('ADMIN_EMAIL', '').strip()
+        is_admin = (email == admin_email)
+
+        # 2) OR present in ADMIN table
+        if not is_admin:
+            try:
+                admins = database.get_admins()  # returns list of (email, first_name, last_name)
+                if any(row[0] == email for row in admins):
+                    is_admin = True
+            except Exception:
+                # if DB lookup fails, keep previous is_admin value (False)
+                pass
+
+        session['is_admin'] = is_admin
+
+        # If admin button clicked, require that the user is actually an admin
+        if action == 'admin_login':
+            if session.get('is_admin'):
+                return redirect('/admin')  # go to the admin dashboard route
+            else:
+                flash("Admin access required for that action")
+                return redirect('/')
+
+        # Regular login redirect
         return redirect(f'/home?fname={user_row[0]}&lname={user_row[1]}&email={user_row[2]}')
     else:
         password_Manager.log_event(f"Failed login attempt for {email} (bad password)")
         flash("Invalid credentials")
         return redirect('/')
     
+@app.route('/admin/results', methods=['GET'])
+@admin_required
+def admin_results():
+    """
+    Load quiz results from the DB and group by user email.
+    Pass a mapping `users` (email -> list of result dicts) to the template.
+    """
+    results = []
+    try:
+        results = database.get_all_results()  # returns rows like (id, email, subject, score, total)
+    except Exception:
+        results = []
+
+    users = {}
+    for r in results:
+        # adapt to your QUIZ_RESULTS schema (id, email, subject, score, total)
+        try:
+            _id = r[0]
+            email = r[1]
+            subject = r[2] if len(r) > 2 else ''
+            score = r[3] if len(r) > 3 else ''
+            total = r[4] if len(r) > 4 else ''
+        except Exception:
+            continue
+
+        # get first/last name from USERS table if available
+        user = database.get_user_by_email(email)
+        if user:
+            fname, lname, _ = user[0], user[1], user[2]
+        else:
+            fname, lname = '', ''
+
+        entry = {
+            'id': _id,
+            'email': email,
+            'subject': subject,
+            'score': score,
+            'total': total,
+            'fname': fname,
+            'lname': lname,
+            'timestamp': ''
+        }
+        users.setdefault(email, []).append(entry)
+
+    return render_template('admin_results.html', users=users)
+
 @app.route('/add_user', methods=['POST'])
 def add_user():
     fname = request.form.get('fname')

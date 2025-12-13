@@ -199,3 +199,33 @@ def get_user_by_email(email):
     row = cursor.execute("SELECT first_name, last_name, email FROM USERS WHERE email=?", (email,)).fetchone()
     connection.close()
     return row
+
+def init_admin_table():
+    """Create ADMIN table to store admin account(s)."""
+    connection = sqlite3.connect(LOGIN_DB)
+    cursor = connection.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ADMIN (
+        email VARCHAR(50) PRIMARY KEY,
+        password VARCHAR(255) NOT NULL,
+        first_name VARCHAR(50),
+        last_name VARCHAR(50)
+    )
+    """)
+
+    # --- auto-create default admin if not present ---
+    try:
+        from password_Manager import password_Manager
+        default_email = "daniel.b.symonds@gmail.com"
+        default_plain = "STARWARS"
+        default_hashed = password_Manager.hash_password(default_plain)
+        cursor.execute(
+            "INSERT OR IGNORE INTO ADMIN(email, password, first_name, last_name) VALUES (?, ?, ?, ?)",
+            (default_email, default_hashed, "daniel", "symonds")
+        )
+    except Exception:
+        # avoid breaking init if something goes wrong with password_Manager import
+        pass
+    # -------------------------------------------------
+    connection.commit()
+    connection.close()

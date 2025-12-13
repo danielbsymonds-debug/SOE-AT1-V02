@@ -5,19 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
     <link rel="stylesheet" type="text/css" href="{{ url_for('static',filename='styles.css') }}">
-
 </head>
 <body>
     <main>
-        <form method="post" action="/login_validation">
-            <input type="email" name="email" placeholder="Enter email"><br>
-            <input type="password" name="password" placeholder="Enter password"><br>
-            <button type="submit" value="Login">Login</button>
-            <button type="submit" value="admin_Login">Admin Login</button>
+        <form method="post" action="{{ url_for('login_validation') }}">
+            <input type="email" name="email" placeholder="Enter email" required><br>
+            <input type="password" name="password" placeholder="Enter password" required><br>
+
+            <!-- Buttons now include a name so the server can tell which was clicked -->
+            <button type="submit" name="action" value="login">Login</button>
+            <button type="submit" name="action" value="admin_login">Admin Login</button>
         </form>
+
         <p>Don't have an account? <br><a href="/signUp">create account</a></p>
         <p><a href="/forgot_page">Forgot password?</a></p>
-        <img>
+        <img alt="">
     </main>
 </body>
 </html>
