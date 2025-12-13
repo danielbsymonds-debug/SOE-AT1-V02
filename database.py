@@ -1,5 +1,6 @@
 import sqlite3
 from datetime import datetime
+import json
 
 LOGIN_DB = "LoginData.db"
 QUIZ_DB = "QuizData.db"
@@ -7,29 +8,8 @@ QUIZ_DB = "QuizData.db"
 # -----------------------------
 # User & OTP tables
 # -----------------------------
-def init_login_db():
-    """Initialize USERS and USEROTP tables."""
-    connection = sqlite3.connect(LOGIN_DB)
-    cursor = connection.cursor()
 
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS USERS(
-        first_name VARCHAR(50),
-        last_name VARCHAR(50),
-        email VARCHAR(50) PRIMARY KEY,
-        password VARCHAR(50) NOT NULL
-    )
-    """)
 
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS USEROTP(
-        email VARCHAR(50) PRIMARY KEY REFERENCES USERS(email),
-        otp VARCHAR(6)
-    )
-    """)
-
-    connection.commit()
-    connection.close()
 
 
 def add_user(fname, lname, email, password):
@@ -229,3 +209,99 @@ def init_admin_table():
     # -------------------------------------------------
     connection.commit()
     connection.close()
+
+def init_quizzes_table():
+    """Create QUIZZES table to store scheduled/admin-generated quizzes."""
+    connection = sqlite3.connect(QUIZ_DB)
+    cursor = connection.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS QUIZZES (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT,
+        genres TEXT,
+        num_questions INTEGER,
+        created_by TEXT,
+        questions TEXT
+    )
+    """)
+    connection.commit()
+    connection.close()
+
+def save_quiz(date, genres, num_questions, created_by, questions):
+    """Save a generated quiz (questions should be serializable)."""
+    connection = sqlite3.connect(QUIZ_DB)
+    cursor = connection.cursor()
+    cursor.execute(
+        "INSERT INTO QUIZZES(date, genres, num_questions, created_by, questions) VALUES (?, ?, ?, ?, ?)",
+        (date, json.dumps(genres), num_questions, created_by, json.dumps(questions))
+    )
+    connection.commit()
+    connection.close()
+
+def get_quiz_by_date(date):
+    """Return the latest quiz for a given date (or None)."""
+    connection = sqlite3.connect(QUIZ_DB)
+    cursor = connection.cursor()
+    row = cursor.execute("SELECT id, date, genres, num_questions, created_by, questions FROM QUIZZES WHERE date=? ORDER BY id DESC LIMIT 1", (date,)).fetchone()
+    connection.close()
+    return row
+
+def get_latest_quiz():
+    """Return the latest quiz saved (or None)."""
+    connection = sqlite3.connect(QUIZ_DB)
+    cursor = connection.cursor()
+    row = cursor.execute("SELECT id, date, genres, num_questions, created_by, questions FROM QUIZZES ORDER BY id DESC LIMIT 1").fetchone()
+    connection.close()
+    return row
+
+# -- QUIZZES table helpers (add to database.py) --
+
+
+def init_quizzes_table():
+    """Create QUIZZES table to store scheduled/admin-generated quizzes."""
+    connection = sqlite3.connect(QUIZ_DB)
+    cursor = connection.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS QUIZZES (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT,
+        genres TEXT,
+        num_questions INTEGER,
+        created_by TEXT,
+        questions TEXT
+    )
+    """)
+    connection.commit()
+    connection.close()
+
+def save_quiz(date, genres, num_questions, created_by, questions):
+    """Save a generated quiz (questions should be serializable)."""
+    connection = sqlite3.connect(QUIZ_DB)
+    cursor = connection.cursor()
+    cursor.execute(
+        "INSERT INTO QUIZZES(date, genres, num_questions, created_by, questions) VALUES (?, ?, ?, ?, ?)",
+        (date, json.dumps(genres), num_questions, created_by, json.dumps(questions))
+    )
+    connection.commit()
+    connection.close()
+
+def get_quiz_by_date(date):
+    """Return the latest quiz for a given date (or None)."""
+    connection = sqlite3.connect(QUIZ_DB)
+    cursor = connection.cursor()
+    row = cursor.execute(
+        "SELECT id, date, genres, num_questions, created_by, questions FROM QUIZZES WHERE date=? ORDER BY id DESC LIMIT 1",
+        (date,)
+    ).fetchone()
+    connection.close()
+    return row
+
+def get_latest_quiz():
+    """Return the latest quiz saved (or None)."""
+    connection = sqlite3.connect(QUIZ_DB)
+    cursor = connection.cursor()
+    row = cursor.execute(
+        "SELECT id, date, genres, num_questions, created_by, questions FROM QUIZZES ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    connection.close()
+    return row

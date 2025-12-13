@@ -11,18 +11,22 @@
         <h1>Welcome!</h1>
         <img class="showUser">
 
+        <!-- Direct link to the active/admin-created quiz -->
+        <form action="{{ url_for('quiz_active') }}" method="get" style="margin-top:12px;">
+            <button type="submit">Take Active Quiz</button>
+        </form>
+
         <!-- Button that navigates to the quiz selection page -->
-        <form action="{{ url_for('quiz') }}" method="get" style="margin-top:16px;">
-            <button type="submit">Daily Quiz</button>
+        <form action="{{ url_for('quiz') }}" method="get" style="margin-top:12px;">
+            <button type="submit">Choose / Generate Quiz</button>
         </form>
 
         <!-- Admin-only link to Admin Dashboard -->
         {% if session.get('is_admin') %}
-          <form action="{{ url_for('admin_Dashboard') }}" method="get" style="margin-top:12px;">
+          <form action="{{ url_for('admin_dashboard') }}" method="get" style="margin-top:12px;">
             <button type="submit">Admin Dashboard</button>
           </form>
         {% endif %}
     </main>
 </body>
 </html>
-

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>{{ subject or "Quiz" }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <main>
+    <h1>{{ subject or "Quiz" }}</h1>
+
+  {% if not questions %}
+  <p>No questions available.</p>
+  <a href="{{ url_for('home') }}">Back to Home</a>
+{% else %}
+  <form method="post" action="{{ url_for('submit_quiz') }}">
+    {% for q in questions %}
+      {% set qnum = loop.index %}
+      <fieldset style="margin-bottom:18px;">
+        <legend>
+          <strong>Q{{ qnum }}.</strong>
+          {{ q.get('question') or q.get('prompt') or 'Question text missing' }}
+        </legend>
+
+        {% if q.get('options') %}
+          {% for opt in q.get('options') %}
+            <div>
+              <label>
+                <input type="radio" name="q{{ qnum }}" value="{{ opt }}" required>
+                {{ opt }}
+              </label>
+            </div>
+          {% endfor %}
+        {% else %}
+          <div>
+            <input type="text" name="q{{ qnum }}" placeholder="Your answer" style="width:100%;" required>
+          </div>
+        {% endif %}
+      </fieldset>
+    {% endfor %}
+
+    <button type="submit">Submit Quiz</button>
+  </form>
+{% endif %}
+    </main>

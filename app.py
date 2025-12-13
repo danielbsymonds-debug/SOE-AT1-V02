@@ -16,12 +16,13 @@ from datetime import datetime
 import database  # adjust import if you placed database.py elsewhere
 
 # ensure DBs/tables exist
-database.init_login_db()
 database.init_quiz_db()
 database.init_admin_table()
 database.init_daily_scores()
+database.init_quizzes_table() 
 
 app = Flask(__name__)
+app.jinja_env.globals.update(enumerate=enumerate)
 app.secret_key = os.urandom(24)
 CORS(app) 
 quiz_ai = QuizAI()
@@ -66,7 +67,7 @@ def admin_quiz_setup():
 
 @app.route('/admin/quiz_setup', methods=['POST'])
 @admin_required
-def admin_quiz_setup_post():
+def    admin_quiz_setup_post():
     # Read form fields
     date_str = request.form.get('date')  # expected YYYY-MM-DD
     genres = request.form.getlist('genres')  # array of selected genres
@@ -98,33 +99,63 @@ def admin_quiz_setup_post():
             flash(e)
         return redirect('/admin/quiz_setup')
 
-    # Persist schedule to JSON file
-    entry = {
-        'date': date_str,
-        'genres': normalized_genres,
-        'num_questions': num_q,
-        'created_by': session.get('user_email')
-    }
+      # Build a subject/prompt for the AI from the chosen genres
+    subject_prompt = ", ".join(normalized_genres).title()
 
-    schedules = []
-    try:
-        if os.path.exists('quiz_schedules.json'):
-            with open('quiz_schedules.json', 'r', encoding='utf-8') as f:
-                schedules = json.load(f)
-    except Exception:
-        schedules = []
-
-    schedules.append(entry)
+    # Ask the AI to generate the questions: temporarily set the QuizAI instance fields
+    old_subject = getattr(quiz_ai, 'subject', None)
+    old_difficulty = getattr(quiz_ai, 'difficulty', None)
+    quiz_ai.subject = subject_prompt
+    quiz_ai.difficulty = "advanced"
 
     try:
-        with open('quiz_schedules.json', 'w', encoding='utf-8') as f:
-            json.dump(schedules, f, indent=2)
+        questions = quiz_ai.generate_questions(num_questions=num_q)
     except Exception as e:
-        flash("Failed to save schedule: " + str(e))
+        # restore before exiting
+        quiz_ai.subject = old_subject
+        quiz_ai.difficulty = old_difficulty
+        flash(f"Failed to generate questions from AI: {e}")
         return redirect('/admin/quiz_setup')
 
-    flash("Quiz schedule saved.")
+    # restore original ai settings
+    quiz_ai.subject = old_subject
+    quiz_ai.difficulty = old_difficulty
+
+    # Persist generated quiz to DB
+    try:
+        database.save_quiz(date_str, normalized_genres, num_q, session.get('user_email'), questions)
+    except Exception as e:
+        flash(f"Failed to save generated quiz: {e}")
+        return redirect('/admin/quiz_setup')
+
+    flash("Quiz scheduled and generated successfully.")
     return redirect('/admin/quiz_setup')
+
+@app.route('/quiz/active', methods=['GET'])
+def quiz_active():
+    """Load today's quiz (or the latest) and present it to the user."""
+    today = datetime.utcnow().date().isoformat()
+    quiz_row = database.get_quiz_by_date(today)
+    if not quiz_row:
+        quiz_row = database.get_latest_quiz()
+        if not quiz_row:
+            flash("No active quiz is available right now.")
+            return redirect('/home')
+
+    # quiz_row: (id, date, genres, num_questions, created_by, questions)
+    quiz_id, quiz_date, genres_json, num_q, created_by, questions_json = quiz_row
+    try:
+        questions = json.loads(questions_json)
+    except Exception:
+        # fallback if questions stored as a Python list string
+        questions = quiz_row[5]
+
+    # Store generated questions in session so submit_quiz can grade them
+    session['questions'] = questions
+    session['subject'] = f"Daily Quiz ({quiz_date})"
+    print(questions)
+
+    return render_template('quiz.html', subject=session['subject'], questions=questions)
 
 @app.route('/')
 def login():
@@ -404,11 +435,23 @@ def check_otp():
 def quiz():
     if request.method == 'POST':
         subject = request.form.get('subject', 'General Knowledge')
-        questions = quiz_ai.generate_questions(subject=subject, difficulty="advanced", num_questions=3)
+        # Temporarily set the AI's subject/difficulty for generation
+        old_subject = getattr(quiz_ai, 'subject', None)
+        old_difficulty = getattr(quiz_ai, 'difficulty', None)
+        quiz_ai.subject = subject
+        quiz_ai.difficulty = "advanced"
+
+        try:
+            questions = quiz_ai.generate_questions(num_questions=3)
+        finally:
+            # restore original settings
+            quiz_ai.subject = old_subject
+            quiz_ai.difficulty = old_difficulty
 
         # Store questions in session so we can grade later
         session['questions'] = questions
         session['subject'] = subject
+        print(questions)
         return render_template('quiz.html', subject=subject, questions=questions)
 
     return render_template('quiz_select.html')  # page with subject input form
