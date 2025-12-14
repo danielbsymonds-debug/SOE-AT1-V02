@@ -3,6 +3,11 @@ import json
 import logging
 from time import sleep
 from transformers import pipeline
+import database
+
+#Gemini Imports
+#from google import genai
+#End Gemini Imports
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -12,7 +17,10 @@ class QuizAI:
         self.subject = subject
         self.difficulty = difficulty
         # Keep a single generator instance (may be slow to init)
-        self.generator = pipeline("text-generation", model=model_name)
+        #self.generator = pipeline("text-generation", model=model_name)
+        #client = genai.Client(api_key="AlzaSyAFdQyYQ_deLwWfSUiAbpWaA9vPbrfEQww")
+
+       # response = client.models.generate_content(model="gemini-2.5-flash", contents="Explain how AI works in a few words")
 
     def _strip_prompt_echo(self, generated_text, prompt):
         """
@@ -140,111 +148,112 @@ class QuizAI:
 
         # First: try to get JSON array from model (most deterministic)
         json_prompt = (
-            f"Generate a JSON array of exactly {num_questions} multiple-choice questions about {subj}.\n"
-            "Each item must be an object with keys: \"question\" (string), \"options\" (array of 4 strings labeled 'A) ...'), and \"answer\" (a single letter A-D).\n"
-            "Example:\n"
-            '[{"question":"Q?","options":["A) ...","B) ...","C) ...","D) ..."],"answer":"B"}]\n'
-            "Output only valid JSON (no commentary)."
+            f"Create a multiple choice quiz on sports with 10 questions. There are 4 choices for each question. Provide the quiz in json format with the field question no,question, answer1, answer2,answer3,answer4 and correct answer no. return in only json format"
         )
 
-        for attempt in range(max_retries):
-            try:
-                generated = self.generator(json_prompt, max_length=512, num_return_sequences=1,
-                                           temperature=0.7, top_p=0.95)[0].get("generated_text", "")
-                raw = generated.strip()
-                body = self._strip_prompt_echo(raw, json_prompt)
-                body = self._strip_until_first_marker(body)
+        # for attempt in range(max_retries):
+          #  try:
+        generated = """{ 
+    "quiz": [
+        {
+        "question n": 1,
+        "question": "What country has won the most FIFA World Cups?",
+        "answer1": "Argentina",
+        "answer2": "Germany",
+        "answer3": "Brazil",
+        "answer4": "Italy",
+        "correct answer no": 3
+        },
+        {
+        "question no": 2,
+        "question": "How many points is a successful free throw worth in basketball?",
+        "answer1": "1",
+        "answer2": "2",
+        "answer3": "3",
+        "answer4": "4",
+        "correct answer no": 1
+        },
+        {
+        "question no": 3,
+        "question": "What is the term for a baseball player who only bats and does not play a defensive position in the American League?",
+        "answer1": "Relief Pitcher",
+        "answer2": "Designated Hitter",
+        "answer3": "Closer",
+        "answer4": "Pinch Runner",
+        "correct answer no": 2
+        },
+        {
+        "question no": 4,
+        "question": "In which city were the first modern Olympic Games held in 1896?",
+        "answer1": "London",
+        "answer2": "Paris",
+        "answer3": "Athens",
+        "answer4": "Rome",
+        "correct answer no": 3
+        },
+        {
+        "question no": 5,
+        "question": "What is the only Grand Slam tennis tournament played on a clay court?",
+        "answer1": "US Open",
+        "answer2": "Wimbledon",
+        "answer3": "Australian Open",
+        "answer4": "French Open (Roland Garros)",
+        "correct answer no": 4
+        },
+        {
+        "question no": 6,
+        "question": "What is the term for a score of one stroke under par on a single hole in golf?",
+        "answer1": "Bogey",
+        "answer2": "Birdie",
+        "answer3": "Eagle",
+        "answer4": "Albatross",
+        "correct answer no": 2
+        },
+        {
+        "question no": 7,
+        "question": "The martial art and sport of judo originated in which country?",
+        "answer1": "China",
+        "answer2": "South Korea",
+        "answer3": "Japan",
+        "answer4": "Thailand",
+        "correct answer no": 3
+        },
+        {
+        "question no": 8,
+        "question": "How many points is a touchdown worth in American football before the extra point or two-point conversion attempt?",
+        "answer1": "3",
+        "answer2": "5",
+        "answer3": "6",
+        "answer4": "7",
+        "correct answer no": 3
+        },
+        {
+        "question no": 9,
+        "question": "What is the standard duration of one period in a professional ice hockey game (e.g., NHL)?",
+        "answer1": "15 minutes",
+        "answer2": "20 minutes",
+        "answer3": "25 minutes",
+        "answer4": "30 minutes",
+        "correct answer no": 2
+        },
+        {
+        "question no": 10,
+        "question": "Which track and field event involves throwing a heavy spherical object?",
+        "answer1": "Javelin Throw",
+        "answer2": "Discus Throw",
+        "answer3": "Hammer Throw",
+        "answer4": "Shot Put",
+        "correct answer no": 4
+        }
+    ]
+    }"""#self.generator(json_prompt, num_return_sequences=1, temperature=0.7, top_p=0.95)[0].get("generated_text", "")
+        raw = generated.strip()
+        body = self._strip_prompt_echo(raw, json_prompt)
+        body = self._strip_until_first_marker(body)
 
-                parsed_json = self._try_json_parse(body)
-                if parsed_json and len(parsed_json) == num_questions:
-                    normalized = []
-                    for item in parsed_json:
-                        q = (item.get('question') or "").strip()
-                        opts = item.get('options') or []
-                        ans = (item.get('answer') or 'A').strip().upper()
-                        if not isinstance(opts, list):
-                            opts = []
-                        if not re.match(r'^[A-D]$', ans):
-                            ans = 'A'
-                        normalized.append({"question": q, "options": opts, "answer": ans, "raw": body})
-                    # final quick validation
-                    if all(n['question'] for n in normalized):
-                        logger.info("JSON parse success")
-                        return normalized
-                # else try again
-            except Exception:
-                logger.exception("JSON generation attempt failed")
-            sleep(0.15)
+        parsed_json = self._try_json_parse(body)
+        return parsed_json
 
-        # Second: try textual multi-question prompt (numbered)
-        text_prompt = (
-            f"Create exactly {num_questions} {diff} multiple-choice questions about {subj}.\n"
-            "Number them 1., 2., ... Each question should be followed by four choices labeled A), B), C), D) on separate lines and include 'Answer: X'.\n"
-            "Output only the questions, choices and answer lines."
-        )
-
-        for attempt in range(max_retries):
-            try:
-                generated = self.generator(text_prompt, max_length=512, num_return_sequences=1,
-                                           temperature=0.8, top_p=0.95)[0].get("generated_text", "")
-                raw = generated.strip()
-                body = self._strip_prompt_echo(raw, text_prompt)
-                body = self._strip_until_first_marker(body)
-
-                # split into blocks
-                parts = re.split(r'(?m)^\s*\d+\.\s*', body)
-                blocks = [p.strip() for p in parts if p.strip()]
-                if len(blocks) < num_questions:
-                    parts2 = re.split(r'(?mi)^\s*question\s*\d+[:.\s]*', body)
-                    blocks = [p.strip() for p in parts2 if p.strip()]
-                if len(blocks) < num_questions:
-                    parts3 = re.split(r'\n\s*\n', body)
-                    blocks = [p.strip() for p in parts3 if p.strip()]
-
-                parsed = [self._parse_single_block(blk) for blk in blocks[:num_questions]]
-                # validate parsed content (non-empty question)
-                if len(parsed) == num_questions and all(p['question'] for p in parsed):
-                    logger.info("Text multi-question parse success")
-                    return parsed
-            except Exception:
-                logger.exception("Text multi-question attempt failed")
-            sleep(0.15)
-
-        # Last resort: generate per-question to guarantee count
-        logger.info("Falling back to per-question generation")
-        out = []
-        for i in range(num_questions):
-            prompt = (
-                f"Create one {diff} multiple-choice question about {subj}.\n"
-                "Provide exactly four choices labeled A), B), C), D) each on its own line, followed by 'Answer: X'.\n"
-                "Output only the question, choices, and the answer line."
-            )
-            try:
-                generated = self.generator(prompt, max_length=256, num_return_sequences=1,
-                                           temperature=0.8, top_p=0.95)[0].get("generated_text", "")
-                raw = generated.strip()
-                body = self._strip_prompt_echo(raw, prompt)
-                body = self._strip_until_first_marker(body)
-                parsed = self._parse_single_block(body)
-                if not parsed['question']:
-                    # fallback placeholder if parsing failed
-                    out.append({
-                        "question": f"(auto placeholder question {i+1})",
-                        "options": ["A) Option 1", "B) Option 2", "C) Option 3", "D) Option 4"],
-                        "answer": "A",
-                        "raw": body
-                    })
-                else:
-                    out.append(parsed)
-            except Exception:
-                logger.exception("Per-question generation failed; adding placeholder")
-                out.append({
-                    "question": f"(auto placeholder question {i+1})",
-                    "options": ["A) Option 1", "B) Option 2", "C) Option 3", "D) Option 4"],
-                    "answer": "A",
-                    "raw": generated if 'generated' in locals() else ""
-                })
-        return out
 
     def grade(self, questions, user_answers):
         score = 0

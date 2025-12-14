@@ -12,6 +12,7 @@ from AI import QuizAI
 import functools
 import json
 from datetime import datetime
+from types import SimpleNamespace
 # initialize DBs/tables at startup
 import database  # adjust import if you placed database.py elsewhere
 
@@ -19,11 +20,11 @@ import database  # adjust import if you placed database.py elsewhere
 database.init_quiz_db()
 database.init_admin_table()
 database.init_daily_scores()
-database.init_quizzes_table() 
 database.init_quiz_questions_table()
 database.init_user_result_table()
 
 app = Flask(__name__)
+app.config['DEBUG'] = True
 app.jinja_env.globals.update(enumerate=enumerate)
 app.secret_key = os.urandom(24)
 CORS(app) 
@@ -114,41 +115,20 @@ def admin_quiz_setup_post():
     attempt = 0
     last_exception = None
 
-    while attempt < max_attempts:
-        attempt += 1
-        try:
-            questions = quiz_ai.generate_questions(num_questions=num_q, subject=subject_prompt, difficulty="advanced")
-        except Exception as e:
-            last_exception = e
-            questions = None
+#need to link this with item creation
+    HeaderId = database.create_quiz_head(request.form.get('date'), num_questions, request.form.getlist('genres')[0] , "")
 
-        # Basic validation: questions should be a list of dicts with a non-empty parsed question
-        valid = True
-        if not isinstance(questions, list) or len(questions) < 1:
-            valid = False
-        else:
-            for q in questions:
-                q_text = (q.get('question') or "").strip() if isinstance(q, dict) else ""
-                raw = (q.get('raw') or "") if isinstance(q, dict) else ""
-                # If parsed question is empty or equals (or contains) the prompt, consider it invalid
-                if not q_text:
-                    valid = False
-                    break
-                low_q = q_text.lower()
-                if subject_prompt.lower() in low_q or low_q.startswith("create ") or "multiple-choice" in low_q:
-                    valid = False
-                    break
-                # Also check if raw output is obviously just the prompt
-                if raw and (subject_prompt.lower() in raw.lower() or raw.strip().lower().startswith("create ")):
-                    # but only treat as invalid if parsed q_text still suspicious
-                    # do nothing extra here (already checked q_text)
-                    pass
 
-        if valid:
-            break  # good to go
-        else:
-            # try again: small random tweak could help (but here we just retry)
-            questions = None
+    try:
+        questions = quiz_ai.generate_questions(num_questions=num_q, subject=subject_prompt, difficulty="advanced")
+    except Exception as e:
+        last_exception = e
+        questions = None
+
+    for q in questions: 
+        question = q[0]     
+        database.create_item_line(HeaderId, q.question, q.answer1, q.answer2, q.answer3, q.answer4, q.correct_answer)
+       
 
     # restore original ai settings
     quiz_ai.subject = old_subject
@@ -172,30 +152,30 @@ def admin_quiz_setup_post():
     return redirect('/admin/quiz_setup')
 
 @app.route('/quiz/active', methods=['GET'])
-def quiz_active():
-    """Load today's quiz (or the latest) and present it to the user."""
-    today = datetime.utcnow().date().isoformat()
-    quiz_row = database.get_quiz_by_date(today)
-    if not quiz_row:
-        quiz_row = database.get_latest_quiz()
-        if not quiz_row:
-            flash("No active quiz is available right now.")
-            return redirect('/home')
+#def quiz_active():
+    #"""Load today's quiz (or the latest) and present it to the user."""
+    #today = datetime.utcnow().date().isoformat()
+    #quiz_row = database.get_quiz_by_date(today)
+    #if not quiz_row:
+        #quiz_row = database.get_latest_quiz()
+        #if not quiz_row:
+           # flash("No active quiz is available right now.")
+            #return redirect('/home')
 
     # quiz_row: (id, date, genres, num_questions, created_by, questions)
-    quiz_id, quiz_date, genres_json, num_q, created_by, questions_json = quiz_row
-    try:
-        questions = json.loads(questions_json)
-    except Exception:
+    #quiz_id, quiz_date, genres_json, num_q, created_by, questions_json = quiz_row
+    #try:
+       # questions = json.loads(questions_json)
+    #except Exception:
         # fallback if questions stored as a Python list string
-        questions = quiz_row[5]
+        #questions = quiz_row[5]
 
     # Store generated questions in session so submit_quiz can grade them
-    session['questions'] = questions
-    session['subject'] = f"Daily Quiz ({quiz_date})"
-    print(questions)
+   # session['questions'] = questions
+   ## session['subject'] = f"Daily Quiz ({quiz_date})"
+   # print(questions)
 
-    return render_template('quiz.html', subject=session['subject'], questions=questions)
+   # return render_template('quiz.html', subject=session['subject'], questions=questions)
 
 @app.route('/')
 def login():
@@ -533,6 +513,9 @@ def submit_quiz():
     flash(f'Quiz submitted — Score: {score}/{total}')
     return redirect('/home')
 
+#@app.teardown_appcontext
+#def teardown():
+#    database.close_db(e=None)
 
 #--------- Utility ---------#
 def generate_otp():
@@ -563,8 +546,8 @@ def send_email(sender_email, receiver_email, subject, body, smtp_server, smtp_po
         server.quit()
         
     except Exception as e:
-        print(f"Failed to send email: {e}")   
+        print("Failed to send email: {e}")   
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run()
     
