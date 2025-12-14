@@ -13,10 +13,27 @@
     .schedules { margin-top:20px; border-top:1px solid #ddd; padding-top:12px; }
     .schedule-item { margin-bottom:10px; padding:8px; border:1px solid #eee; border-radius:6px; background:#fafafa; }
   </style>
+   <script>
+      function generatePrompt(){
+        const genreEl = document.querySelector('input[name="genres"]:checked');
+        const numEl = document.getElementById('num_questions');
+        const textarea = document.getElementById('prompt');
+        const genre = genreEl ? genreEl.value : 'General Knowledge';
+        const num = numEl && numEl.value ? parseInt(numEl.value, 10) : 1;
+        const s = num > 1 ? 's' : '';
+        const prompt = `Create a multiple choice quiz on ${genre} with ${num} questions. There are 4 choices for each question. Provide the quiz in json format with the field question no,question, answer1, answer2,answer3,answer4 and correct answer number. Return only the JSON`;
+        textarea.value = prompt;
+      }
+
+      document.addEventListener('DOMContentLoaded', function(){
+        const btn = document.getElementById('gen_prompt');
+        if(btn) btn.addEventListener('click', function(e){ e.preventDefault(); generatePrompt(); });
+      });
+      </script>
 </head>
 <body>
   <main>
-    <h1>Admin — Schedule a Quiz</h1>
+    <h1>Admin — Create a new Quiz</h1>
 
     {% with messages = get_flashed_messages() %}
       {% if messages %}
@@ -29,18 +46,18 @@
     {% endwith %}
 
     <form method="post" action="{{ url_for('admin_quiz_setup_post') }}">
-      <div class="field">
+     <!--  <div class="field">
         <label for="date">Select date</label>
         <input type="date" id="date" name="date" required>
-      </div>
+      </div> -->
 
       <div class="field">
-        <label>Genres (choose one or more)</label>
+        <label>Genres (choose one)</label>
         <div class="genres">
-          <label><input type="checkbox" name="genres" value="sports"> Sports</label>
-          <label><input type="checkbox" name="genres" value="general"> General Knowledge</label>
-          <label><input type="checkbox" name="genres" value="geography"> Geography</label>
-          <label><input type="checkbox" name="genres" value="history"> History</label>
+          <label><input type="radio" name="genres" value="sports"> Sports</label>
+          <label><input type="radio" name="genres" value="general knowledge"> General Knowledge</label>
+          <label><input type="radio" name="genres" value="geography"> Geography</label>
+          <label><input type="radio" name="genres" value="history"> History</label>
         </div>
       </div>
 
@@ -50,10 +67,23 @@
       </div>
 
       <div class="field">
-        <button type="submit">Save Quiz Schedule</button>
+        <button id="gen_prompt" type="button">Generate Prompt</button>
+      </div>
+<div class="field">
+      <textarea id="prompt" name="Prompt" rows="6" cols="50"></textarea>
+</div>
+
+<div class="field">
+  <label>Paste the generated prompt into ChatGPT then copy and paste the generated JSON into the field below</label>
+      <textarea id="QuizJson" name="QuizJson" rows="6" cols="50"></textarea>
+</div>
+
+      <div class="field">
+        <button type="submit">Save</button>
       </div>
     </form>
 
+     
     <section class="schedules">
       <h2>Existing Schedules</h2>
       {% if schedules %}

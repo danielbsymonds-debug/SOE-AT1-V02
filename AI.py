@@ -142,116 +142,12 @@ class QuizAI:
                 pass
         return None
 
-    def generate_questions(self, num_questions=3, subject=None, difficulty=None, max_retries=3):
-        subj = subject or self.subject or "General Knowledge"
-        diff = difficulty or self.difficulty or "advanced"
-
-        # First: try to get JSON array from model (most deterministic)
-        json_prompt = (
-            f"Create a multiple choice quiz on sports with 10 questions. There are 4 choices for each question. Provide the quiz in json format with the field question no,question, answer1, answer2,answer3,answer4 and correct answer no. return in only json format"
-        )
-
-        # for attempt in range(max_retries):
-          #  try:
-        generated = """{ 
-    "quiz": [
-        {
-        "question n": 1,
-        "question": "What country has won the most FIFA World Cups?",
-        "answer1": "Argentina",
-        "answer2": "Germany",
-        "answer3": "Brazil",
-        "answer4": "Italy",
-        "correct answer no": 3
-        },
-        {
-        "question no": 2,
-        "question": "How many points is a successful free throw worth in basketball?",
-        "answer1": "1",
-        "answer2": "2",
-        "answer3": "3",
-        "answer4": "4",
-        "correct answer no": 1
-        },
-        {
-        "question no": 3,
-        "question": "What is the term for a baseball player who only bats and does not play a defensive position in the American League?",
-        "answer1": "Relief Pitcher",
-        "answer2": "Designated Hitter",
-        "answer3": "Closer",
-        "answer4": "Pinch Runner",
-        "correct answer no": 2
-        },
-        {
-        "question no": 4,
-        "question": "In which city were the first modern Olympic Games held in 1896?",
-        "answer1": "London",
-        "answer2": "Paris",
-        "answer3": "Athens",
-        "answer4": "Rome",
-        "correct answer no": 3
-        },
-        {
-        "question no": 5,
-        "question": "What is the only Grand Slam tennis tournament played on a clay court?",
-        "answer1": "US Open",
-        "answer2": "Wimbledon",
-        "answer3": "Australian Open",
-        "answer4": "French Open (Roland Garros)",
-        "correct answer no": 4
-        },
-        {
-        "question no": 6,
-        "question": "What is the term for a score of one stroke under par on a single hole in golf?",
-        "answer1": "Bogey",
-        "answer2": "Birdie",
-        "answer3": "Eagle",
-        "answer4": "Albatross",
-        "correct answer no": 2
-        },
-        {
-        "question no": 7,
-        "question": "The martial art and sport of judo originated in which country?",
-        "answer1": "China",
-        "answer2": "South Korea",
-        "answer3": "Japan",
-        "answer4": "Thailand",
-        "correct answer no": 3
-        },
-        {
-        "question no": 8,
-        "question": "How many points is a touchdown worth in American football before the extra point or two-point conversion attempt?",
-        "answer1": "3",
-        "answer2": "5",
-        "answer3": "6",
-        "answer4": "7",
-        "correct answer no": 3
-        },
-        {
-        "question no": 9,
-        "question": "What is the standard duration of one period in a professional ice hockey game (e.g., NHL)?",
-        "answer1": "15 minutes",
-        "answer2": "20 minutes",
-        "answer3": "25 minutes",
-        "answer4": "30 minutes",
-        "correct answer no": 2
-        },
-        {
-        "question no": 10,
-        "question": "Which track and field event involves throwing a heavy spherical object?",
-        "answer1": "Javelin Throw",
-        "answer2": "Discus Throw",
-        "answer3": "Hammer Throw",
-        "answer4": "Shot Put",
-        "correct answer no": 4
-        }
-    ]
-    }"""#self.generator(json_prompt, num_return_sequences=1, temperature=0.7, top_p=0.95)[0].get("generated_text", "")
+    def generate_questions(self, generated):
+      
         raw = generated.strip()
-        body = self._strip_prompt_echo(raw, json_prompt)
-        body = self._strip_until_first_marker(body)
+        body = self._strip_until_first_marker(raw)
 
-        parsed_json = self._try_json_parse(body)
+        parsed_json = self._try_json_parse(raw)
         return parsed_json
 
 

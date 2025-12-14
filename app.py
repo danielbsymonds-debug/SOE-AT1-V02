@@ -71,14 +71,12 @@ def admin_quiz_setup():
 @admin_required
 def admin_quiz_setup_post():
     # Read form fields
-    date_str = request.form.get('date')  # expected YYYY-MM-DD
     genres = request.form.getlist('genres')  # array of selected genres
     num_questions = request.form.get('num_questions', '').strip()
-
+    quizJson = request.form.get('QuizJson', '').strip()
     # Basic validation
     errors = []
-    if not date_str:
-        errors.append("Date is required.")
+    
     try:
         num_q = int(num_questions)
         if num_q <= 0:
@@ -86,7 +84,7 @@ def admin_quiz_setup_post():
     except Exception:
         errors.append("Number of questions must be an integer.")
 
-    allowed_genres = {'sports', 'general', 'geography', 'history'}
+    allowed_genres = {'sports', 'general knowledge', 'geography', 'history'}
     normalized_genres = []
     for g in genres:
         key = g.strip().lower()
@@ -101,38 +99,19 @@ def admin_quiz_setup_post():
             flash(e)
         return redirect('/admin/quiz_setup')
 
-    # Build a subject/prompt for the AI from the chosen genres
-    subject_prompt = ", ".join(normalized_genres).title()
-
-    # Ask the AI to generate the questions. Retry a couple times if parsing fails.
-    old_subject = getattr(quiz_ai, 'subject', None)
-    old_difficulty = getattr(quiz_ai, 'difficulty', None)
-    quiz_ai.subject = subject_prompt
-    quiz_ai.difficulty = "advanced"
-
-    questions = None
-    max_attempts = 3
-    attempt = 0
-    last_exception = None
 
 #need to link this with item creation
     HeaderId = database.create_quiz_head(request.form.get('date'), num_questions, request.form.getlist('genres')[0] , "")
 
 
     try:
-        questions = quiz_ai.generate_questions(num_questions=num_q, subject=subject_prompt, difficulty="advanced")
+        questions = quiz_ai.generate_questions(generated=quizJson)
     except Exception as e:
         last_exception = e
         questions = None
 
     for q in questions: 
-        question = q[0]     
-        database.create_item_line(HeaderId, q.question, q.answer1, q.answer2, q.answer3, q.answer4, q.correct_answer)
-       
-
-    # restore original ai settings
-    quiz_ai.subject = old_subject
-    quiz_ai.difficulty = old_difficulty
+        database.create_item_line(HeaderId, q["question no"], q["question"] , q["answer1"], q["answer2"], q["answer3"], q["answer4"], q["correct answer number"])   
 
     if not questions:
         msg = f"Failed to generate valid questions from AI."
@@ -142,11 +121,11 @@ def admin_quiz_setup_post():
         return redirect('/admin/quiz_setup')
 
     # Persist generated quiz to DB (questions contain 'raw' now)
-    try:
+    """ try:
         database.save_quiz(date_str, normalized_genres, num_q, session.get('user_email'), questions)
     except Exception as e:
         flash(f"Failed to save generated quiz: {e}")
-        return redirect('/admin/quiz_setup')
+        return redirect('/admin/quiz_setup') """
 
     flash("Quiz scheduled and generated successfully.")
     return redirect('/admin/quiz_setup')

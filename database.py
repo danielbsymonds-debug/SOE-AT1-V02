@@ -61,16 +61,19 @@ def init_quiz_questions_table():
     """
     connection = get_db(QUIZ_DB)
     cursor = connection.cursor()
+    cursor.execute("DROP TABLE IF EXISTS QuizQuestions")
+    connection.commit() 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS QuizQuestions (
-        Qid INTEGER PRIMARY KEY,
-        Qno INTEGER PRIMARY KEY,
+        Qid INTEGER,
+        Qno INTEGER,
         Qstr TEXT,
         A TEXT,
         B TEXT,
         C TEXT,
         D TEXT,
-        CAns TEXT
+        CAns TEXT,
+        PRIMARY KEY (Qid,Qno)
     )
     """)
     connection.commit()
@@ -92,6 +95,8 @@ def init_quiz_header_table():
     """
     connection = get_db(QUIZ_DB)
     cursor = connection.cursor()
+    cursor.execute("DROP TABLE IF EXISTS QUIZ_HEADER")
+    connection.commit() 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS QuizHeader (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -131,11 +136,11 @@ def add_user(fname, lname, email, password):
     connection.commit()
     connection.close()
 
-def create_item_line(headerId, question, answer1,answer2,answer3,answer4, correct_answer):
+def create_item_line(headerId, QuestionId, question, answer1,answer2,answer3,answer4, correct_answer):
     connection = get_db(QUIZ_DB)
     cursor = connection.cursor()
-    cursor.execute("INSERT INTO QuizQuestions(Qid, question, answer1,answer2,answer3,answer4, correct_answer) VALUES (?,?,?,?,?,?,? )",
-                   (headerId, question, answer1,answer2,answer3,answer4, correct_answer))
+    cursor.execute("INSERT INTO QuizQuestions(Qid, Qno, Qstr, A,B,C,D, CAns) VALUES (?,?,?,?,?,?,?,? )",
+                   (headerId, QuestionId, question, answer1,answer2,answer3,answer4, correct_answer))
     connection.commit()
     connection.close()
 
