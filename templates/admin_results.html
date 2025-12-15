@@ -5,61 +5,24 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Admin — All Quiz Results</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-  <style>
-    /* Simple home-like layout */
-    :root {
-      --maxw:1100px;
-      --accent:#0b57a4;
-      --muted:#6b7280;
-      --card:#ffffff;
-      --bg:#f7f9fb;
-      --border:#e6e9ef;
-      --success:#16a34a;
-      --danger:#dc2626;
-    }
-    *{box-sizing:border-box}
-    body{font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial;color:#111;margin:0;background:var(--bg)}
-    .site-header{background:var(--accent);color:white;padding:14px 0}
-    .wrap{max-width:var(--maxw);margin:0 auto;padding:0 16px;display:flex;align-items:center;justify-content:space-between}
-    .site-title{font-size:1.05rem;margin:0}
-    .nav-links a{color:white;text-decoration:none;margin-left:12px;font-size:0.95rem}
-    main.wrap-main{max-width:var(--maxw);margin:20px auto;padding:16px}
-    .intro{color:var(--muted);margin-bottom:12px}
-    .user-list{display:flex;flex-direction:column;gap:14px}
-    .user-card{background:linear-gradient(0deg,#fff,#fff);border:1px solid var(--border);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:10px}
-    .user-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
-    .user-info{display:flex;flex-direction:column}
-    .user-name{font-weight:700;margin:0}
-    .user-email{color:var(--muted);font-size:0.9rem}
-    .meta{color:var(--muted);font-size:0.9rem}
-    .results-table{width:100%;border-collapse:collapse;margin-top:8px}
-    .results-table th,.results-table td{padding:10px 8px;border-top:1px solid var(--border);text-align:left;font-size:0.95rem}
-    .results-table th{background:transparent;font-weight:700;color:#333}
-    .no-data{color:var(--muted);padding:18px;text-align:center;border:1px dashed var(--border);border-radius:8px;background:#fff}
-    .actions{display:flex;gap:8px;margin-top:14px}
-    .btn{display:inline-block;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:#fff;color:#111;text-decoration:none}
-    .score-pill{font-weight:700;color:#fff;padding:6px 8px;border-radius:20px;font-size:0.9rem}
-    .score-good{background:var(--success)}
-    .score-bad{background:var(--danger)}
-    footer{max-width:var(--maxw);margin:20px auto;color:var(--muted);text-align:center;padding-bottom:24px}
-    @media (max-width:720px){
-      .user-head{flex-direction:column;align-items:flex-start}
-      .wrap{padding:0 12px}
-    }
-  </style>
 </head>
-<body>
-  <header class="site-header">
-    <div class="wrap">
-      <h1 class="site-title">Admin Dashboard — Quiz Results</h1>
-      <div class="nav-links">
-        <a href="{{ url_for('admin_dashboard') }}">Dashboard</a>
-        <a href="{{ url_for('home') }}">Home</a>
-      </div>
-    </div>
-  </header>
+<style>
+  button {
+  cursor: pointer;
+  border: none;
+  background: var(--accent);
+  color: #000;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 16px;
+  box-shadow: 0 6px 12px rgba(0,0,0,0.06);
+}
 
-  <main class="wrap-main">
+</style>
+<body>
+  <main>
+    <h1>Admin — All Quiz Results</h1>
     <p class="intro">All recorded quiz attempts grouped by user. Click a user to inspect individual attempts.</p>
 
     {% if users %}
@@ -131,8 +94,12 @@
             </div>
 
             <div class="actions">
-              <a class="btn" href="{{ url_for('admin_dashboard') }}">Back to Dashboard</a>
-              <a class="btn" href="{{ url_for('home') }}">Return Home</a>
+              <form action="{{ url_for('admin_dashboard') }}" method="get" style="margin-top:12px;">
+                <button type="submit">Back to Dashboard</button>
+              </form>
+              <form action="{{ url_for('home') }}" method="get" style="margin-top:12px;">
+                <button>Return Home</button>
+              </form>
             </div>
           </section>
         {% endfor %}

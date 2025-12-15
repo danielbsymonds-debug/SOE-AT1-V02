@@ -15,7 +15,6 @@ from datetime import datetime
 from types import SimpleNamespace
 # initialize DBs/tables at startup
 import database  # adjust import if you placed database.py elsewhere
-
 # ensure DBs/tables exist
 database.init_quiz_db()
 database.init_admin_table()
@@ -555,4 +554,4 @@ def send_email(sender_email, receiver_email, subject, body, smtp_server, smtp_po
         print("Failed to send email: {e}")   
 
 if __name__ == '__main__':
-    app.run()
+    serve(app, host='0.0.0.0', port=8000)
