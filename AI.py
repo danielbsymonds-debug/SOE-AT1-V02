@@ -2,7 +2,6 @@ import re
 import json
 import logging
 from time import sleep
-from transformers import pipeline
 import database
 
 #Gemini Imports
