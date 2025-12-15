@@ -1,8 +1,8 @@
 import sqlite3
-from datetime import datetime
-from flask import g
+import os
+import password_Manager
 import json
-import re
+from datetime import datetime
 
 LOGIN_DB = "LoginData.db"
 QUIZ_DB = "QuizData.db"
@@ -36,11 +36,12 @@ def init_quiz_db():
     cursor = get_db(QUIZ_DB).cursor()
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS QUIZ_RESULTS (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        Qid ,
         email TEXT,
         subject TEXT,
         score INTEGER,
-        total INTEGER
+        total INTEGER,
+        primary key (Qid,email)
     )
     """)
     get_db(QUIZ_DB).commit()
@@ -61,8 +62,6 @@ def init_quiz_questions_table():
     """
     connection = get_db(QUIZ_DB)
     cursor = connection.cursor()
-    cursor.execute("DROP TABLE IF EXISTS QuizQuestions")
-    connection.commit() 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS QuizQuestions (
         Qid INTEGER,
@@ -82,8 +81,8 @@ def init_quiz_questions_table():
 # -----------------------------
 # QuizHeader table (quiz metadata)
 # -----------------------------
-def init_quiz_header_table():
-    """
+""" def init_quiz_header_table():
+    
     Create QuizHeader table to store quiz-level metadata.
     Columns:
       id        INTEGER PRIMARY KEY AUTOINCREMENT
@@ -92,12 +91,11 @@ def init_quiz_header_table():
       no_ques    INTEGER    -- number of questions in the quiz
       genre      TEXT       -- genre or comma-separated genres
       is_active  INTEGER    -- 0/1 -> boolean (1 = active)
-    """
+    
     connection = get_db(QUIZ_DB)
     cursor = connection.cursor()
-    cursor.execute("DROP TABLE IF EXISTS QUIZ_HEADER")
-    connection.commit() 
-    cursor.execute("""
+
+    cursor.execute(
     CREATE TABLE IF NOT EXISTS QuizHeader (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         per_create TEXT,
@@ -106,11 +104,11 @@ def init_quiz_header_table():
         genre TEXT,
         is_active INTEGER
     )
-    """)
+    )
     connection.commit()
-    connection.close()
+    connection.close() """
 
-# --- Admin table and daily scores helpers ---
+# --- Admin table helpers ---
 
 def init_admin_table():
     """Create ADMIN table to store admin account(s)."""
@@ -145,59 +143,40 @@ def create_item_line(headerId, QuestionId, question, answer1,answer2,answer3,ans
     connection.close()
 
 def create_quiz_head(dateCreated, noQues, genre, createdBy):
+    """
+    Insert a new QUIZ_HEADER row and mark it active.
+    Before inserting, clear any existing active QUIZ_HEADER rows (is_active = 1 -> 0).
+    """
     connection = get_db(QUIZ_DB)
     cursor = connection.cursor()
-    cursor.execute("INSERT INTO QUIZ_HEADER(date,num_questions, genres, created_by   ) VALUES (?,?,?,?)",
-                   (dateCreated, noQues, genre, createdBy))
-    connection.commit()
-    connection.close()
-    return cursor.lastrowid
+    try:
+        # Try to deactivate any currently active QUIZ_HEADER entries (if column/table exists)
+        try:
+            cursor.execute("UPDATE QUIZ_HEADER SET is_active = 0 WHERE is_active = 1")
+        except Exception:
+            # QUIZ_HEADER or is_active may not exist in older schemas — ignore safely
+            pass
 
-def get_users():
-    """Return all users."""
-    connection = get_db(LOGIN_DB)
-    cursor = connection.cursor()
-    rows = cursor.execute("SELECT * FROM USERS").fetchall()
-    connection.close()
-    return rows
-
-
-def save_otp(email, otp):
-    """Save or update OTP for a user."""
-    connection = get_db(LOGIN_DB)
-    cursor = connection.cursor()
-    cursor.execute("DELETE FROM USEROTP WHERE email=?", (email,))
-    cursor.execute("INSERT INTO USEROTP(email, otp) VALUES (?, ?)", (email, otp))
-    connection.commit()
-    connection.close()
+        # Insert new header (legacy schema used elsewhere in this codebase)
+        cursor.execute(
+            "INSERT INTO QUIZ_HEADER(date,num_questions, genres, created_by, is_active) VALUES (?,?,?,?,?)",
+            (dateCreated, noQues, genre, createdBy, 1)
+        )
+        connection.commit()
+        return cursor.lastrowid
+    finally:
+        connection.close()
 
 
-def check_otp(email, otp):
-    """Check if OTP matches for a given email."""
-    connection = get_db(LOGIN_DB)
-    cursor = connection.cursor()
-    ans = cursor.execute("SELECT * FROM USEROTP WHERE email=?", (email,)).fetchall()
-    connection.close()
-    return len(ans) > 0 and ans[0][1] == otp
 
-
-def save_quiz_result(email, subject, score, total):
+def save_quiz_result(Qid, email, subject, score, total):
     """Save a quiz result."""
     connection = get_db(QUIZ_DB)
     cursor = connection.cursor()
-    cursor.execute("INSERT INTO QUIZ_RESULTS(email, subject, score, total) VALUES (?, ?, ?, ?)",
-                   (email, subject, score, total))
+    cursor.execute("INSERT INTO QUIZ_RESULTS(Qid, email, subject, score, total) VALUES (?,?, ?, ?, ?)",
+                   (Qid, email, subject, score, total))
     connection.commit()
     connection.close()
-
-
-def get_user_results(email):
-    """Get all quiz results for a user."""
-    connection = get_db(QUIZ_DB)
-    cursor = connection.cursor()
-    rows = cursor.execute("SELECT * FROM QUIZ_RESULTS WHERE email=?", (email,)).fetchall()
-    connection.close()
-    return rows
 
 
 def get_all_results():
@@ -226,45 +205,6 @@ def get_admins():
     connection = get_db(LOGIN_DB)
     cursor = connection.cursor()
     rows = cursor.execute("SELECT email, first_name, last_name FROM ADMIN").fetchall()
-    connection.close()
-    return rows
-
-
-def init_daily_scores():
-    """Create DAILY_SCORES table to store daily quiz scores (per user)."""
-    connection = get_db(QUIZ_DB)
-    cursor = connection.cursor()
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS DAILY_SCORES (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        fname TEXT,
-        lname TEXT,
-        email TEXT,
-        score INTEGER,
-        date TEXT
-    )
-    """)
-    connection.commit()
-    connection.close()
-
-
-def save_daily_score(fname, lname, email, score, date=None):
-    """Save a daily quiz score entry."""
-    if date is None:
-        date = datetime.utcnow().isoformat()
-    connection = get_db(QUIZ_DB)
-    cursor = connection.cursor()
-    cursor.execute("INSERT INTO DAILY_SCORES(fname, lname, email, score, date) VALUES (?, ?, ?, ?, ?)",
-                   (fname, lname, email, score, date))
-    connection.commit()
-    connection.close()
-
-
-def get_all_daily_scores():
-    """Return all daily scores, ordered newest first."""
-    connection = get_db(QUIZ_DB)
-    cursor = connection.cursor()
-    rows = cursor.execute("SELECT id, fname, lname, email, score, date FROM DAILY_SCORES ORDER BY date DESC").fetchall()
     connection.close()
     return rows
 
@@ -309,22 +249,6 @@ def init_admin_table():
 
 
 
-def save_quiz_question(qno, qstr, a, b, c, d, cans):
-    """
-    Insert a question row into QuizQuestions.
-    Returns the inserted Qid.
-    """
-    connection = get_db(QUIZ_DB)
-    cursor = connection.cursor()
-    cursor.execute(
-        "INSERT INTO QuizQuestions (Qno, Qstr, A, B, C, D, CAns) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (qno, qstr, a, b, c, d, cans)
-    )
-    qid = cursor.lastrowid
-    connection.commit()
-    connection.close()
-    return qid
-
 def get_quiz_questions():
     """Return all QuizQuestions rows (list of tuples)."""
     connection = get_db(QUIZ_DB)
@@ -332,13 +256,6 @@ def get_quiz_questions():
     rows = cursor.execute("SELECT Qid, Qno, Qstr, A, B, C, D, CAns FROM QuizQuestions ORDER BY Qno ASC").fetchall()
     connection.close()
     return rows
-
-def get_question_by_qid(qid):
-    connection = get_db(QUIZ_DB)
-    cursor = connection.cursor()
-    row = cursor.execute("SELECT Qid, Qno, Qstr, A, B, C, D, CAns FROM QuizQuestions WHERE Qid=?", (qid,)).fetchone()
-    connection.close()
-    return row
 
 
 def init_user_result_table():
@@ -367,19 +284,6 @@ def init_user_result_table():
     connection.commit()
     connection.close()
 
-def save_user_result(user, qid, qno, ans, correct):
-    """
-    Save a user's answer.
-    `correct` should be truthy/falsey (True -> 1, False -> 0)
-    """
-    connection = get_db(QUIZ_DB)
-    cursor = connection.cursor()
-    cursor.execute(
-        "INSERT INTO User_Result (user, Qid, Qno, Ans, correct_answer) VALUES (?, ?, ?, ?, ?)",
-        (user, qid, qno, ans, 1 if correct else 0)
-    )
-    connection.commit()
-    connection.close()
 
 def get_user_results(user):
     """Return all User_Result rows for a given user (list of tuples)."""
@@ -398,181 +302,301 @@ def get_results_for_question(qid):
     return rows
 
 
-def save_quiz_header(per_create, date_time, no_ques, genre, is_active=0):
-    """
-    Insert a quiz header row. `date_time` should be an integer timestamp (UTC seconds).
-    Returns the inserted id.
-    """
-    connection = get_db(QUIZ_DB)
-    cursor = connection.cursor()
-    cursor.execute(
-        "INSERT INTO QuizHeader (per_create, date_time, no_ques, genre, is_active) VALUES (?, ?, ?, ?, ?)",
-        (per_create, int(date_time), int(no_ques), genre, 1 if is_active else 0)
-    )
-    qid = cursor.lastrowid
-    connection.commit()
-    connection.close()
-    return qid
+def _get_db_path():
+    return os.path.join(os.path.dirname(__file__), 'LoginData.db')
 
-def get_quiz_headers(active_only=False):
-    """
-    Return list of quiz header rows.
-    If active_only is True, returns only rows where is_active=1.
-    """
-    connection = get_db(QUIZ_DB)
-    cursor = connection.cursor()
-    if active_only:
-        rows = cursor.execute("SELECT id, per_create, date_time, no_ques, genre, is_active FROM QuizHeader WHERE is_active=1 ORDER BY date_time DESC").fetchall()
-    else:
-        rows = cursor.execute("SELECT id, per_create, date_time, no_ques, genre, is_active FROM QuizHeader ORDER BY date_time DESC").fetchall()
-    connection.close()
-    return rows
-
-def get_quiz_header_by_id(hid):
-    connection = get_db(QUIZ_DB)
-    cursor = connection.cursor()
-    row = cursor.execute("SELECT id, per_create, date_time, no_ques, genre, is_active FROM QuizHeader WHERE id=?", (hid,)).fetchone()
-    connection.close()
-    return row
-
-def set_quiz_active(hid, active=True):
-    """
-    Set or unset a quiz header as active (active=True -> is_active=1).
-    """
-    connection = get_db(QUIZ_DB)
-    cursor = connection.cursor()
-    cursor.execute("UPDATE QuizHeader SET is_active=? WHERE id=?", (1 if active else 0, hid))
-    connection.commit()
-    connection.close()
-
-    # -----------------------------
-# Save quiz header + questions (linked)
-# -----------------------------
-def _ensure_quizquestions_has_quizid():
-    """
-    Ensure the QuizQuestions table has a 'quiz_id' column.
-    If the column does not exist, add it (ALTER TABLE).
-    """
-    connection = get_db(QUIZ_DB)
-    cursor = connection.cursor()
-    # Get table columns
-    cols = [row[1] for row in cursor.execute("PRAGMA table_info('QuizQuestions')").fetchall()]
-    if 'quiz_id' not in cols:
-        try:
-            cursor.execute("ALTER TABLE QuizQuestions ADD COLUMN quiz_id INTEGER")
-            connection.commit()
-        except Exception:
-            # If ALTER fails, ignore - we still try insert without quiz_id
-            pass
-    connection.close()
-
-def save_quiz_with_header(per_create, date_time, no_ques, genre, is_active, questions):
-    """
-    Save a quiz: insert a header row into QuizHeader and insert each question into QuizQuestions.
-    - per_create: creator identifier (email/name)
-    - date_time: integer timestamp (or string; will be converted to int if possible)
-    - no_ques: number of questions (int)
-    - genre: string (single or comma-separated)
-    - is_active: truthy/falsey -> stored as 1/0
-    - questions: list of dicts, each dict expected to contain:
-        { "question": "...", "options": ["A) ...","B) ...","C) ...","D) ..."], "answer": "A", ... }
-    Returns: header_id (the inserted QuizHeader.id)
-    """
-    # Ensure tables exist
-    init_quiz_header_table()
-    init_quiz_questions_table()
-    # Ensure QuizQuestions has quiz_id column for linking
-    _ensure_quizquestions_has_quizid()
-
-    # Normalize date_time to int if possible
+def ensure_users_table():
+    db_path = _get_db_path()
+    conn = sqlite3.connect(db_path)
     try:
-        date_time_int = int(date_time)
-    except Exception:
-        # try to parse ISO date string to timestamp (best-effort)
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS USERS(
+                first_name TEXT,
+                last_name TEXT,
+                email TEXT UNIQUE,
+                password TEXT
+            )
+        """)
+        conn.commit()
+    finally:
+        conn.close()
+
+def ensure_userotp_table():
+    db_path = _get_db_path()
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS USEROTP(
+                email TEXT UNIQUE,
+                otp TEXT
+            )
+        """)
+        conn.commit()
+    finally:
+        conn.close()
+
+def ensure_user_result_table():
+    db = _get_db_path()
+    conn = sqlite3.connect(QUIZ_DB)
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS User_result(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT,
+                quiz_id INTEGER,
+                answers TEXT, -- JSON string of user's answers
+                timestamp TEXT
+            )
+        """)
+        conn.commit()
+    finally:
+        conn.close()
+
+def ensure_quiz_results_table():
+    db = _get_db_path()
+    conn = sqlite3.connect(QUIZ_DB)
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS quiz_results(
+                Qid INTEGER,
+                email TEXT,
+                subject TEXT,
+                score INTEGER,
+                total INTEGER,
+                timestamp TEXT,
+                    primary key (Qid,email)
+            )
+        """)
+        conn.commit()
+    finally:
+        conn.close()
+
+# keep existing user helpers (user_exists, insert_user) if present
+def user_exists(email):
+    db_path = _get_db_path()
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT 1 FROM USERS WHERE email = ?", (email,))
+        return cur.fetchone() is not None
+    finally:
+        conn.close()
+
+def insert_user(first_name, last_name, email, hashed_password):
+    db_path = _get_db_path()
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
         try:
-            from datetime import datetime
-            # accept YYYY-MM-DD or full ISO; set time to 00:00 UTC if only date provided
-            if isinstance(date_time, str) and len(date_time) == 10:
-                dt = datetime.fromisoformat(date_time)
+            cur.execute(
+                "INSERT INTO USERS(first_name,last_name,email,password) VALUES (?,?,?,?)",
+                (first_name, last_name, email, hashed_password)
+            )
+            conn.commit()
+            return True, None
+        except sqlite3.IntegrityError:
+            return False, "User already exists"
+        except Exception as e:
+            return False, str(e)
+    finally:
+        conn.close()
+
+# Authentication helper (migrates plaintext password to hashed if needed)
+def authenticate_user(email, password):
+    
+    db_path = _get_db_path()
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM USERS WHERE email = ?", (email,))
+        user_row = cur.fetchone()
+        if not user_row:
+            return False, None, "no such user"
+
+        stored_password = user_row[3] if len(user_row) > 3 else None
+
+        if stored_password == password:
+            return True, user_row, None
+        else:
+            return False, None, "bad password"
+    finally:
+        conn.close()
+
+# OTP helpers
+def set_user_otp(email, otp):
+    db_path = _get_db_path()
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM USEROTP WHERE email = ?", (email,))
+        cur.execute("INSERT INTO USEROTP(email, otp) VALUES (?, ?)", (email, str(otp)))
+        conn.commit()
+    finally:
+        conn.close()
+
+def get_user_otp(email):
+    db_path = _get_db_path()
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT otp FROM USEROTP WHERE email = ?", (email,))
+        row = cur.fetchone()
+        return row[0] if row else None
+    finally:
+        conn.close()
+
+def delete_user_otp(email):
+    db_path = _get_db_path()
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM USEROTP WHERE email = ?", (email,))
+        conn.commit()
+    finally:
+        conn.close()
+
+# ensure tables exist on import
+ensure_users_table()
+ensure_userotp_table()
+ensure_user_result_table()
+ensure_quiz_results_table()
+
+def get_active_quiz():
+    """
+    Return the active quiz header as a dict or None.
+    Expected quiz_header columns: id, date, genres, num_questions, created_by, is_active (boolean/int)
+    """
+    db_path = os.path.join(os.path.dirname(__file__), QUIZ_DB)
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, date, genres, num_questions, created_by FROM QUIZ_HEADER WHERE is_active = 1 LIMIT 1")
+        row = cur.fetchone()
+        if not row:
+            return None
+        return {
+            'id': row[0],
+            'date': row[1],
+            'genres': row[2],
+            'num_questions': row[3],
+            'created_by': row[4]
+        }
+    finally:
+        conn.close()
+
+def get_quiz_questions(quiz_id):
+    """
+    Return a list of question dicts for the given quiz header id (Qid).
+    Each dict contains keys: question_no, question, answer1..answer4, correct_answer_number
+    """
+    db_path = os.path.join(os.path.dirname(__file__), QUIZ_DB)
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT Qno, Qstr, A, B, C, D, CAns
+            FROM QuizQuestions
+            WHERE Qid = ?
+            ORDER BY Qno
+        """, (quiz_id,))
+        rows = cur.fetchall()
+        questions = []
+        for r in rows:
+            questions.append({
+                'question_no': r[0],
+                'question': r[1],
+                'answer1': r[2],
+                'answer2': r[3],
+                'answer3': r[4],
+                'answer4': r[5],
+                'correct_answer_number': r[6]
+            })
+        return questions
+    finally:
+        conn.close()
+
+def save_user_answers(email, quiz_id, answers_json):
+    """
+    Persist a user's per-question answers into the User_Result table.
+
+    answers_json should be a JSON string like:
+      [ {"selected":"1","correct":"2"}, {"selected":"3","correct":"3"}, ... ]
+
+    This will insert one row per question into User_Result using columns:
+      user, Qid, Qno, Ans, correct_answer
+    """
+    # ensure target table exists (matches init_user_result_table schema)
+    connection = get_db(QUIZ_DB)
+    try:
+        cur = connection.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS User_Result (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user TEXT,
+                Qid INTEGER,
+                Qno INTEGER,
+                Ans TEXT,
+                correct_answer INTEGER
+            )
+        """)
+        # parse JSON
+        try:
+            items = json.loads(answers_json)
+            if not isinstance(items, list):
+                items = list(items)
+        except Exception as e:
+            # malformed JSON -> nothing to save
+            connection.close()
+            raise ValueError(f"Invalid answers_json: {e}")
+
+        # insert each answer as a separate row
+        for idx, item in enumerate(items, start=1):
+            # accept dicts that may contain different keys
+            if isinstance(item, dict):
+                selected = item.get('selected', '') or item.get('Ans', '') or ''
+                correct = item.get('correct', '') or item.get('correct_answer', '') or ''
             else:
-                dt = datetime.fromisoformat(date_time)
-            date_time_int = int(dt.timestamp())
-        except Exception:
-            date_time_int = int(__import__('time').time())
+                # if item is just a primitive, treat as selected value
+                selected = item
+                correct = ''
 
-    # Insert header row using existing helper if present
-    header_id = None
-    try:
-        header_id = save_quiz_header(per_create, date_time_int, no_ques, genre, is_active)
-    except Exception:
-        # Fallback: insert directly if helper not found
-        connection = get_db(QUIZ_DB)
-        cursor = connection.cursor()
-        cursor.execute(
-            "INSERT INTO QuizHeader (per_create, date_time, no_ques, genre, is_active) VALUES (?, ?, ?, ?, ?)",
-            (per_create, int(date_time_int), int(no_ques), genre, 1 if is_active else 0)
-        )
-        header_id = cursor.lastrowid
+            # normalize to strings for comparison
+            sel_str = str(selected).strip()
+            corr_str = str(correct).strip()
+
+            correct_flag = 1 if (sel_str != "" and corr_str != "" and sel_str == corr_str) else 0
+
+            cur.execute(
+                "INSERT INTO User_Result(user, Qid, Qno, Ans, correct_answer) VALUES (?, ?, ?, ?, ?)",
+                (email, quiz_id, idx, sel_str, correct_flag)
+            )
+
         connection.commit()
+        return True
+    finally:
         connection.close()
 
-    # Insert questions
-    connection = get_db(QUIZ_DB)
-    cursor = connection.cursor()
-    for idx, q in enumerate(questions, start=1):
-        # extract fields with safe defaults
-        qstr = (q.get('question') or q.get('prompt') or "").strip()
-        opts = q.get('options') or []
-        # Normalize options to strings for A,B,C,D
-        A = opts[0] if len(opts) > 0 else ""
-        B = opts[1] if len(opts) > 1 else ""
-        C = opts[2] if len(opts) > 2 else ""
-        D = opts[3] if len(opts) > 3 else ""
-        # Normalize answer to single letter A-D
-        ans = (q.get('answer') or "A").strip().upper()
-        if not re.match(r'^[A-D]$', ans):
-            # try to recover from an index or text match
-            if isinstance(ans, str) and ans.isdigit():
-                # convert "1" -> A etc (1->A,2->B...)
-                try:
-                    n = int(ans)
-                    if 1 <= n <= 4:
-                        ans = chr(ord('A') + n - 1)
-                    else:
-                        ans = "A"
-                except Exception:
-                    ans = "A"
-            else:
-                ans = "A"
-
-        # Insert with quiz_id if column exists
-        cols = [row[1] for row in cursor.execute("PRAGMA table_info('QuizQuestions')").fetchall()]
-        if 'quiz_id' in cols:
-            cursor.execute(
-                "INSERT INTO QuizQuestions (Qno, Qstr, A, B, C, D, CAns, quiz_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (idx, qstr, A, B, C, D, ans, header_id)
-            )
-        else:
-            cursor.execute(
-                "INSERT INTO QuizQuestions (Qno, Qstr, A, B, C, D, CAns) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (idx, qstr, A, B, C, D, ans)
-            )
-
-    connection.commit()
-    connection.close()
-    return header_id
-
-def get_questions_by_quiz_id(quiz_id):
+def get_user_answers_for_quiz(user_email, quiz_id):
     """
-    Return list of questions rows (Qid, Qno, Qstr, A, B, C, D, CAns, quiz_id) for a given quiz header id.
+    Return list of rows (Qno, Ans, correct_answer) for the given user and quiz id,
+    ordered by Qno ascending. Returns empty list if none.
     """
     connection = get_db(QUIZ_DB)
-    cursor = connection.cursor()
-    # If quiz_id column exists, fetch by it; otherwise return empty list
-    cols = [row[1] for row in cursor.execute("PRAGMA table_info('QuizQuestions')").fetchall()]
-    if 'quiz_id' in cols:
-        rows = cursor.execute("SELECT Qid, Qno, Qstr, A, B, C, D, CAns, quiz_id FROM QuizQuestions WHERE quiz_id=? ORDER BY Qno ASC", (quiz_id,)).fetchall()
-    else:
-        rows = []
-    connection.close()
-    return rows
+    try:
+        cur = connection.cursor()
+        rows = cur.execute(
+            "SELECT Qno, Ans, correct_answer FROM User_Result WHERE user=? AND Qid=? ORDER BY Qno ASC",
+            (user_email, quiz_id)
+        ).fetchall()
+        return rows
+    finally:
+        connection.close()
+
+def has_user_completed_quiz(user_email, quiz_id):
+    """Return True if the user has at least one User_Result row for the quiz."""
+    rows = get_user_answers_for_quiz(user_email, quiz_id)
+    return len(rows) > 0

@@ -27,16 +27,6 @@
           <button type="submit">Open Quiz Setup</button>
         </form>
       </div>
-
-      <div class="card">
-        <h3>Daily Scores</h3>
-        <p>View the daily quiz scores table for all users.</p>
-        <form action="{{ url_for('admin_daily_scores') }}" method="get">
-          <button type="submit">View Daily Scores</button>
-        </form>
-      </div>
-    </div>
-
       <div class="card">
         <h3>All Quiz Results</h3>
         <p>See every user's quiz attempts and scores.</p>
@@ -44,6 +34,10 @@
           <button type="submit">View All Results</button>
         </form>
       </div>
+      
+    </div>
+
+      
 
     <div style="margin-top:20px;">
       <a href="{{ url_for('home') }}"><button type="button">Return Home</button></a>

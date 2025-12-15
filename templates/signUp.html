@@ -16,7 +16,17 @@
             <input type="password" placeholder="Enter Password" name="password"><br>
             <button type="submit" value="login">create account</button>
         </form>
-        <p>Already have an accout? <a href="/">login here</a></p>
+        <p>Already have an account? <a href="/">login here</a></p>
+        {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <ul>
+          {% for m in messages %}
+            <li style="color:darkred">{{ m }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
     </main>
+    
 </body>
 </html>

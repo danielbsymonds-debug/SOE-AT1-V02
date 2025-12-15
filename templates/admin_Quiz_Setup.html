@@ -25,10 +25,10 @@
         textarea.value = prompt;
       }
 
-      document.addEventListener('DOMContentLoaded', function(){
+     /*  document.addEventListener('DOMContentLoaded', function(){
         const btn = document.getElementById('gen_prompt');
         if(btn) btn.addEventListener('click', function(e){ e.preventDefault(); generatePrompt(); });
-      });
+      }); */
       </script>
 </head>
 <body>
@@ -67,7 +67,7 @@
       </div>
 
       <div class="field">
-        <button id="gen_prompt" type="button">Generate Prompt</button>
+        <button id="gen_prompt" type="button" onclick="generatePrompt()">Generate Prompt</button>
       </div>
 <div class="field">
       <textarea id="prompt" name="Prompt" rows="6" cols="50"></textarea>
@@ -83,22 +83,10 @@
       </div>
     </form>
 
-     
-    <section class="schedules">
-      <h2>Existing Schedules</h2>
-      {% if schedules %}
-        {% for s in schedules|reverse %}
-          <div class="schedule-item">
-            <div><strong>Date:</strong> {{ s.date }}</div>
-            <div><strong>Genres:</strong> {{ s.genres | join(', ') }}</div>
-            <div><strong>Questions:</strong> {{ s.num_questions }}</div>
-            <div style="font-size:0.9rem;color:#666"><strong>Created by:</strong> {{ s.created_by or 'unknown' }}</div>
-          </div>
-        {% endfor %}
-      {% else %}
-        <p>No schedules yet.</p>
-      {% endif %}
-    </section>
+     <div class="actions">
+      <a href="{{ url_for('admin_dashboard') }}"><button type="button">Back to Dashboard</button></a>
+      <a href="{{ url_for('home') }}"><button type="button">Return Home</button></a>
+    </div>
   </main>
 </body>
 </html>

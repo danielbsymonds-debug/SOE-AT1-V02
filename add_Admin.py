@@ -8,6 +8,6 @@ first_name = "daniel"
 last_name = "symonds"
 
 hashed = password_Manager.hash_password(plain_pw)
-database.add_admin(email, hashed, first_name, last_name)
+database.add_user(email=email, password=hashed, fname=first_name, lname=last_name)
 print("Admin created/updated:", email)
 print("Note: change the password after first login for security.")

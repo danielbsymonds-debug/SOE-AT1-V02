@@ -14,12 +14,20 @@
 
             <!-- Buttons now include a name so the server can tell which was clicked -->
             <button type="submit" name="action" value="login">Login</button>
-            <button type="submit" name="action" value="admin_login">Admin Login</button>
         </form>
 
         <p>Don't have an account? <br><a href="/signUp">create account</a></p>
         <p><a href="/forgot_page">Forgot password?</a></p>
         <img alt="">
+        {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <ul>
+          {% for m in messages %}
+            <li style="color:darkred">{{ m }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+      {% endwith %}
     </main>
 </body>
 </html>

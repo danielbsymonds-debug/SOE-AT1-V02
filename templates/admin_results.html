@@ -6,122 +6,148 @@
   <title>Admin — All Quiz Results</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
   <style>
-    :root { --maxw:1100px; --muted:#666; --card:#fafafa; --border:#e8e8e8; }
-    body { font-family: Arial, Helvetica, sans-serif; margin:0; padding:0; background:#fff; color:#222; }
-    header { background:#0b57a4; color:white; padding:12px 16px; }
-    header .wrap { max-width:var(--maxw); margin:0 auto; display:flex; align-items:center; justify-content:space-between; }
-    header h1 { font-size:1.1rem; margin:0; }
-    nav a { color:white; text-decoration:none; margin-left:12px; font-size:0.95rem; }
-    main { max-width:var(--maxw); margin:20px auto; padding:16px; }
-    .intro { color:var(--muted); margin-bottom:12px; }
-    .user-block { margin-bottom:20px; border:1px solid var(--border); padding:12px; border-radius:8px; background:var(--card); }
-    .user-head { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
-    .user-head h2 { margin:0; font-size:1rem; }
-    .meta { color:var(--muted); font-size:0.9rem; }
-    table { width:100%; border-collapse:collapse; margin-top:10px; }
-    th, td { padding:10px 8px; border-bottom:1px solid #efefef; text-align:left; vertical-align:top; font-size:0.95rem; }
-    th { background:#fafafa; font-weight:700; }
-    .no-data { color:var(--muted); padding:18px; text-align:center; border:1px dashed var(--border); border-radius:8px; }
-    footer { max-width:var(--maxw); margin:18px auto; color:var(--muted); font-size:0.9rem; text-align:center; padding-bottom:24px; }
-    .actions { margin-top:14px; display:flex; gap:8px; }
-    button { padding:8px 12px; border-radius:6px; border:1px solid #ccc; background:#fff; cursor:pointer; }
-    @media (max-width:720px) {
-      th, td { padding:8px 6px; font-size:0.9rem; }
-      header .wrap { flex-direction:column; align-items:flex-start; gap:8px; }
+    /* Simple home-like layout */
+    :root {
+      --maxw:1100px;
+      --accent:#0b57a4;
+      --muted:#6b7280;
+      --card:#ffffff;
+      --bg:#f7f9fb;
+      --border:#e6e9ef;
+      --success:#16a34a;
+      --danger:#dc2626;
+    }
+    *{box-sizing:border-box}
+    body{font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial;color:#111;margin:0;background:var(--bg)}
+    .site-header{background:var(--accent);color:white;padding:14px 0}
+    .wrap{max-width:var(--maxw);margin:0 auto;padding:0 16px;display:flex;align-items:center;justify-content:space-between}
+    .site-title{font-size:1.05rem;margin:0}
+    .nav-links a{color:white;text-decoration:none;margin-left:12px;font-size:0.95rem}
+    main.wrap-main{max-width:var(--maxw);margin:20px auto;padding:16px}
+    .intro{color:var(--muted);margin-bottom:12px}
+    .user-list{display:flex;flex-direction:column;gap:14px}
+    .user-card{background:linear-gradient(0deg,#fff,#fff);border:1px solid var(--border);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:10px}
+    .user-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .user-info{display:flex;flex-direction:column}
+    .user-name{font-weight:700;margin:0}
+    .user-email{color:var(--muted);font-size:0.9rem}
+    .meta{color:var(--muted);font-size:0.9rem}
+    .results-table{width:100%;border-collapse:collapse;margin-top:8px}
+    .results-table th,.results-table td{padding:10px 8px;border-top:1px solid var(--border);text-align:left;font-size:0.95rem}
+    .results-table th{background:transparent;font-weight:700;color:#333}
+    .no-data{color:var(--muted);padding:18px;text-align:center;border:1px dashed var(--border);border-radius:8px;background:#fff}
+    .actions{display:flex;gap:8px;margin-top:14px}
+    .btn{display:inline-block;padding:8px 12px;border-radius:8px;border:1px solid var(--border);background:#fff;color:#111;text-decoration:none}
+    .score-pill{font-weight:700;color:#fff;padding:6px 8px;border-radius:20px;font-size:0.9rem}
+    .score-good{background:var(--success)}
+    .score-bad{background:var(--danger)}
+    footer{max-width:var(--maxw);margin:20px auto;color:var(--muted);text-align:center;padding-bottom:24px}
+    @media (max-width:720px){
+      .user-head{flex-direction:column;align-items:flex-start}
+      .wrap{padding:0 12px}
     }
   </style>
 </head>
 <body>
-  <header>
+  <header class="site-header">
     <div class="wrap">
-      <h1>Admin Dashboard — Quiz Results</h1>
-      <div>
+      <h1 class="site-title">Admin Dashboard — Quiz Results</h1>
+      <div class="nav-links">
         <a href="{{ url_for('admin_dashboard') }}">Dashboard</a>
-        <a href="{{ url_for('admin_daily_scores') }}">Daily Scores</a>
         <a href="{{ url_for('home') }}">Home</a>
       </div>
     </div>
   </header>
 
-  <main>
-    <p class="intro">Below are all recorded quiz attempts grouped by user. Use the dashboard links to navigate.</p>
+  <main class="wrap-main">
+    <p class="intro">All recorded quiz attempts grouped by user. Click a user to inspect individual attempts.</p>
 
     {% if users %}
-      {% for email, entries in users.items() %}
-        <div class="user-block" aria-label="Results for {{ email }}">
-          <div class="user-head">
-            <div>
-              {# Try to show first/last name from first entry if available #}
-              {% set first_entry = entries[0] if entries|length > 0 else None %}
-              {% if first_entry is mapping %}
-                <h2>{{ (first_entry.get('fname') or first_entry.get('first_name') or '-') }} {{ (first_entry.get('lname') or first_entry.get('last_name') or '') }}</h2>
-              {% else %}
-                <h2>{{ email }}</h2>
-              {% endif %}
-              <div class="meta">{{ email }}</div>
-            </div>
-            <div class="meta">Total tests: {{ entries|length }}</div>
-          </div>
-
-          <table role="table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>First Name</th>
-                <th>Last Name</th>
-                <th>Subject</th>
-                <th>Score</th>
-                <th>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for e in entries %}
-                {# Normalize values whether e is dict-like or tuple/list #}
-                {% if e is mapping %}
-                  {% set date = e.get('timestamp') or e.get('date') or '-' %}
-                  {% set fname = e.get('fname') or e.get('first_name') or '-' %}
-                  {% set lname = e.get('lname') or e.get('last_name') or '-' %}
-                  {% set subject = e.get('subject') or '-' %}
-                  {% set score = e.get('score', '-') %}
-                  {% set total = e.get('total', '-') %}
+      <div class="user-list">
+        {% for email, entries in users.items() %}
+          <section class="user-card" aria-labelledby="u-{{ loop.index }}">
+            <div class="user-head">
+              <div class="user-info">
+                {% set first_entry = entries[0] if entries|length > 0 else None %}
+                {% if first_entry is mapping %}
+                  <h2 id="u-{{ loop.index }}" class="user-name">{{ (first_entry.get('fname') or first_entry.get('first_name') or '-') }} {{ (first_entry.get('lname') or first_entry.get('last_name') or '') }}</h2>
                 {% else %}
-                  {# tuple/sequence handling — try common schemas safely #}
-                  {% set seq = e %}
-                  {% set date = (seq[-1] if seq|length > 0 else '-') %}
-                  {% set score = (seq[3] if seq|length > 3 else '-') %}
-                  {% set total = (seq[4] if seq|length > 4 else '-') %}
-                  {% set subject = (seq[2] if seq|length > 2 else '-') %}
-                  {# fname/lname may be at positions 1/2 in some tables (e.g., DAILY_SCORES) #}
-                  {% set fname = (seq[1] if seq|length > 1 else '-') %}
-                  {% set lname = (seq[2] if seq|length > 2 and seq[2] is string and seq[2] != subject else '-') %}
+                  <h2 id="u-{{ loop.index }}" class="user-name">{{ email }}</h2>
                 {% endif %}
+                <div class="user-email">{{ email }}</div>
+              </div>
 
-                <tr>
-                  <td>{{ date }}</td>
-                  <td>{{ fname }}</td>
-                  <td>{{ lname }}</td>
-                  <td>{{ subject }}</td>
-                  <td>{{ score }}</td>
-                  <td>{{ total }}</td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+              <div class="meta">Attempts: <strong>{{ entries|length }}</strong></div>
+            </div>
 
-        </div>
-      {% endfor %}
+            <div>
+              <table class="results-table" role="table" aria-label="Results for {{ email }}">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Subject</th>
+                    <th>Score</th>
+                    <th>Total</th>
+                    <th>First</th>
+                    <th>Last</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for e in entries %}
+                    {% if e is mapping %}
+                      {% set date = e.get('timestamp') or e.get('date') or '-' %}
+                      {% set fname = e.get('fname') or e.get('first_name') or '-' %}
+                      {% set lname = e.get('lname') or e.get('last_name') or '-' %}
+                      {% set subject = e.get('subject') or '-' %}
+                      {% set score = e.get('score', '-') %}
+                      {% set total = e.get('total', '-') %}
+                    {% else %}
+                      {% set seq = e %}
+                      {% set date = (seq[-1] if seq|length > 0 else '-') %}
+                      {% set score = (seq[3] if seq|length > 3 else '-') %}
+                      {% set total = (seq[4] if seq|length > 4 else '-') %}
+                      {% set subject = (seq[2] if seq|length > 2 else '-') %}
+                      {% set fname = (seq[1] if seq|length > 1 else '-') %}
+                      {% set lname = (seq[2] if seq|length > 2 and seq[2] is string and seq[2] != subject else '-') %}
+                    {% endif %}
+
+                    <tr>
+                      <td>{{ date }}</td>
+                      <td>{{ subject }}</td>
+                      <td>
+                        {% if score is number %}
+                          <span class="score-pill {{ 'score-good' if score|int >= (total|int / 2) else 'score-bad' }}">{{ score }}</span>
+                        {% else %}
+                          {{ score }}
+                        {% endif %}
+                      </td>
+                      <td>{{ total }}</td>
+                      <td>{{ fname }}</td>
+                      <td>{{ lname }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+
+            <div class="actions">
+              <a class="btn" href="{{ url_for('admin_dashboard') }}">Back to Dashboard</a>
+              <a class="btn" href="{{ url_for('home') }}">Return Home</a>
+            </div>
+          </section>
+        {% endfor %}
+      </div>
     {% else %}
       <div class="no-data">No results found.</div>
+      <div style="margin-top:12px;">
+        <a class="btn" href="{{ url_for('admin_dashboard') }}">Back to Dashboard</a>
+        <a class="btn" href="{{ url_for('home') }}">Return Home</a>
+      </div>
     {% endif %}
-
-    <div class="actions">
-      <a href="{{ url_for('admin_dashboard') }}"><button type="button">Back to Dashboard</button></a>
-      <a href="{{ url_for('home') }}"><button type="button">Return Home</button></a>
-    </div>
   </main>
 
   <footer>
-    <div>© {{ (now().year if now is defined else '') }} Quizzes by AI</div>
+    <div>© {{ (now().year if now is defined else '') }} Quizzes</div>
   </footer>
 </body>
 </html>
